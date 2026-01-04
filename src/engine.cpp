@@ -61,7 +61,8 @@ ChessGame::Move minimax(ChessGame::Game &game, uint32_t depth) {
     int32_t beta = Minimax::winValue;
     for (auto [idx, move] : std::views::enumerate(moves)) {
         game.playMove(move);
-        int32_t tmp = -Minimax::simpleAlphaBeta(game, -beta, -alpha, depth - 1);
+        //int32_t tmp = -Minimax::simpleAlphaBeta(game, -beta, -alpha, depth - 1);
+        int32_t tmp = -Minimax::simpleMinimax(game, depth - 1);
         if (tmp > value) {
             value = tmp;
             best = idx;
@@ -76,6 +77,7 @@ int main() {
     std::string inp;
     ChessGame::initConstants();
     ChessGame::Game game{};
+    game.loadStartingPos();
     while (1) {
         if (!IO::recv(inp)) {
             logger.log(std::format("Command not recognized: {}", inp));
