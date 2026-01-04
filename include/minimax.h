@@ -5,6 +5,8 @@
 
 namespace Minimax {
 
+inline uint32_t nodeCount = 0;
+
 const int32_t winValue = 1 << 30;
 const int32_t lossValue = -winValue;
 

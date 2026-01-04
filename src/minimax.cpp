@@ -2,10 +2,13 @@
 #include "evaluation.h"
 #include "game.h"
 #include <cstdint>
+#include <print>
 
 namespace Minimax {
 
+
 int32_t simpleMinimax(ChessGame::Game &game, int32_t depth) {
+    nodeCount++;
     if (depth == 0) {
         return ChessGame::signedColor[game.color] * ChessGame::Evaluation::evaluate(game);
     }
@@ -39,6 +42,7 @@ int32_t simpleMinimax(ChessGame::Game &game, int32_t depth) {
 }
 
 int32_t simpleAlphaBeta(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth) {
+    nodeCount++;
     if (depth == 0) {
         return ChessGame::signedColor[game.color] * ChessGame::Evaluation::evaluate(game);
     }
@@ -59,7 +63,7 @@ int32_t simpleAlphaBeta(ChessGame::Game &game, int32_t alpha, int32_t beta, int3
         game.undoMove(move);
         if (score > bestValue) {
             bestValue = score;
-            if (alpha > beta) {
+            if (score > alpha) {
                 alpha = score;
             }
         }

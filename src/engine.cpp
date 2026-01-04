@@ -8,6 +8,7 @@
 #include <ranges>
 #include <sstream>
 #include <string>
+#include <print>
 
 std::string name = "idk";
 std::string author = "cryptocore";
@@ -59,16 +60,18 @@ ChessGame::Move minimax(ChessGame::Game &game, uint32_t depth) {
     game.validMoves(moves);
     int32_t alpha = Minimax::lossValue;
     int32_t beta = Minimax::winValue;
+    Minimax::nodeCount = 0;
     for (auto [idx, move] : std::views::enumerate(moves)) {
         game.playMove(move);
-        //int32_t tmp = -Minimax::simpleAlphaBeta(game, -beta, -alpha, depth - 1);
-        int32_t tmp = -Minimax::simpleMinimax(game, depth - 1);
-        if (tmp > value) {
-            value = tmp;
+        //int32_t score = -Minimax::simpleAlphaBeta(game, -beta, -alpha, depth - 1);
+        int32_t score = -Minimax::simpleMinimax(game, depth - 1);
+        if (score > value) {
+            value = score;
             best = idx;
         }
         game.undoMove(move);
     }
+    std::print("Node count: {}\n", Minimax::nodeCount);
     return moves[best];
 }
 

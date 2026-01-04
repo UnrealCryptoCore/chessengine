@@ -45,10 +45,20 @@ TEST_CASE("Computing valid positions", "[perft]") {
         REQUIRE(game.perft(3) == 62379);
     }
 
-    SECTION("Position 6: r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10") {
+    SECTION(
+        "Position 6: r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10") {
         game.loadFen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
         REQUIRE(game.perft(1) == 46);
         REQUIRE(game.perft(2) == 2079);
         REQUIRE(game.perft(3) == 89890);
+    }
+
+    SECTION("Position 6: 8/Q1p5/8/6P1/Pk2B3/7P/KP1P3P/R1B5 w - - 1 49") {
+        game.loadFen("8/Q1p5/8/6P1/Pk2B3/7P/KP1P3P/R1B5 w - - 1 49");
+        REQUIRE(game.perft(1) == 33);
+        REQUIRE(game.perft(2) == 99);
+        REQUIRE(game.perft(3) == 3285);
+        REQUIRE(game.perft(4) == 10085);
+        REQUIRE(game.perft(5) == 334392);
     }
 }

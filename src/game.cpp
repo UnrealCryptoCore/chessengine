@@ -140,7 +140,7 @@ std::string Move::toAlgebraicNotation(uint8_t coloredPiece) const {
 }
 
 void Game::reset() {
-    color = 0;
+    color = WHITE;
     occupancyBoth = 0;
     occupancy[WHITE] = 0;
     occupancy[BLACK] = 0;
@@ -149,6 +149,10 @@ void Game::reset() {
     halfmove = 0;
     fullmoves = 1;
     board.fill((uint8_t)Piece::NONE);
+    for (uint8_t piece=0; piece < NUMBER_CHESS_PIECES; piece++) {
+        bitboard[WHITE][piece] = 0;
+        bitboard[BLACK][piece] = 0;
+    }
     undoStack.clear();
 }
 
@@ -364,6 +368,10 @@ bool Game::isSqaureAttacked(BitBoard board, uint8_t enemy) {
     if ((rAttacks & (enemyQueens | bitboard[enemy][(uint8_t)Piece::ROOK])) != 0) {
         return true;
     }
+
+    if (bitboard[enemy][(uint8_t)Piece::KING] & kingMoves[pos]) {
+        return true;
+    }
     return false;
 }
 
@@ -567,6 +575,7 @@ void Game::loadFen(const std::string &fen) {
 }
 
 void Game::loadFen(std::stringstream &ss) {
+    reset();
     std::string item;
     std::string fenBoard;
     std::string fenPlayer;
