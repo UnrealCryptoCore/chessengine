@@ -7,8 +7,9 @@
 namespace ChessGame {
 namespace Evaluation {
 
-const std::array<int16_t, NUMBER_CHESS_PIECES> pieceValues{
-    20000, 900, 500, 330, 320, 100,
+const std::array<int16_t, NUMBER_CHESS_PIECES + 1> pieceValues{
+    20000, 900, 500, 330,
+    320,   100, 100, // last is a second pawn. Because of ep a NONE piece could be returned.
 };
 
 const std::array<std::array<int16_t, 64>, NUMBER_CHESS_PIECES> pieceTable{{

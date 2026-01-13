@@ -2,11 +2,12 @@
 
 #include <array>
 #include <bit>
+#include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <iterator>
 #include <sstream>
 #include <string>
-#include <vector>
 
 #define NUMBER_CHESS_PIECES 6
 #define RANK_MASK(rank) (0xffULL << ((rank) * 8))
@@ -17,7 +18,7 @@
 
 #define WHITE 0
 #define BLACK 1
-#define NO_EP (65)
+#define NO_EP 8
 
 #define CASTLING_QUEEN 0
 #define CASTLING_KING 1
@@ -27,10 +28,11 @@
 #define CASTLING_KING_MASK_BLACK (2 << CASTLING_KING_MASK_WHITE)
 
 #define PIECE_COLOR_MASK 0b1000
-#define MOVE_CAPTURE 0b0001
-#define MOVE_EP 0b0010
-#define MOVE_CASTLE 0b0100
-#define MOVE_DOUBLE_PAWN 0b1000
+
+#define MOVE_CAPTURE 1
+#define MOVE_EP 2
+#define MOVE_CASTLE 4
+#define MOVE_DOUBLE_PAWN 8
 
 namespace ChessGame {
 
@@ -45,6 +47,7 @@ const std::array<std::array<std::string, NUMBER_CHESS_PIECES + 1>, 2> pieceSymbo
 const std::array<char, 8> files{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
 const std::array<int8_t, 2> signedColor{1, -1};
 
+inline std::array<std::array<BitBoard, 9>, 2> epMasks;
 inline std::array<BitBoard, 8> rankMasks;
 inline std::array<BitBoard, 8> fileMasks;
 inline std::array<BitBoard, 64> diag1Masks;
@@ -55,12 +58,17 @@ inline std::array<uint8_t, 2> firstHomeRank{0, 7};
 inline std::array<uint8_t, 2> sndHomeRank{1, 6};
 inline std::array<uint8_t, 2> promotionRank{7, 0};
 
-inline std::array<std::array<uint64_t, 64>, 2> pawnMoves;
+inline std::array<std::array<uint64_t, 64>, 2> pawnAttacks;
 inline std::array<BitBoard, 64> knightMoves;
 inline std::array<BitBoard, 64> kingMoves;
 inline std::array<BitBoard, 64> rookMoves;
 inline std::array<BitBoard, 64> bishopMoves;
 inline std::array<uint8_t, 64> castlingBoardMask;
+
+inline uint64_t zobristPieces[2][NUMBER_CHESS_PIECES+1][64];
+inline uint64_t zobristSide;
+inline std::array<uint64_t, 16>zobristCastle{};
+inline std::array<uint64_t, 9> zobristEP{};
 
 enum class Piece : uint8_t {
     KING = 0,
@@ -147,6 +155,7 @@ struct BitRange {
 
 struct UndoMove {
     BitBoard occupancy[3];
+    uint64_t hash;
     uint8_t capture;
     uint8_t castling;
     uint8_t ep;
@@ -172,10 +181,19 @@ template <typename T, std::size_t N> struct StackList {
 
     T &back() { return stack[count - 1]; }
 
+    void remove_unordered(size_t n) {
+        if (n == count - 1) {
+            count--;
+            return;
+        }
+        stack[n] = stack[--count];
+    }
+
     size_t size() { return count; }
     void resize(size_t size) { count = size; }
 
     void clear() { count = 0; }
+    bool empty() { return count == 0; }
 
     Move *begin() { return stack; }
     Move *end() { return stack + count; }
@@ -193,13 +211,14 @@ struct Game {
     std::array<std::array<BitBoard, NUMBER_CHESS_PIECES>, 2> bitboard;
     std::array<uint8_t, 64> board;
     uint8_t color;
-    BitBoard occupancyBoth;
     Position ep = NO_EP;
     uint8_t castling = 0;
     uint8_t halfmove = 0;
     uint8_t fullmoves = 0;
     std::array<BitBoard, 2> occupancy{0, 0};
+    BitBoard occupancyBoth;
     StackList<UndoMove, 1024> undoStack;
+    uint64_t hash = 0;
 
     void reset();
     void calculateOccupancy();
@@ -221,6 +240,7 @@ struct Game {
     void playMove(Move move);
     void undoMove(Move move);
     uint32_t perft(uint32_t n);
+    uint64_t calculateHash();
     void fromSimpleBoard();
     void loadFen(const std::string &fen);
     void loadFen(std::stringstream &ss);

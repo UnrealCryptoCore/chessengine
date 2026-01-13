@@ -63,7 +63,8 @@ ChessGame::Move minimax(ChessGame::Game &game, uint32_t depth) {
     Minimax::nodeCount = 0;
     for (auto [idx, move] : std::views::enumerate(moves)) {
         game.playMove(move);
-        int32_t score = -Minimax::simpleAlphaBeta(game, -beta, -alpha, depth - 1);
+        //int32_t score = -Minimax::alphaBetaMOTT(game, -beta, -alpha, depth - 1);
+        int32_t score = -Minimax::alphaBetaMO(game, -beta, -alpha, depth - 1);
         //int32_t score = -Minimax::simpleMinimax(game, depth - 1);
         if (score > value) {
             value = score;
