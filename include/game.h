@@ -6,6 +6,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
+#include <print>
 #include <sstream>
 #include <string>
 
@@ -65,9 +66,9 @@ inline std::array<BitBoard, 64> rookMoves;
 inline std::array<BitBoard, 64> bishopMoves;
 inline std::array<uint8_t, 64> castlingBoardMask;
 
-inline uint64_t zobristPieces[2][NUMBER_CHESS_PIECES+1][64];
+inline uint64_t zobristPieces[2][NUMBER_CHESS_PIECES + 1][64];
 inline uint64_t zobristSide;
-inline std::array<uint64_t, 16>zobristCastle{};
+inline std::array<uint64_t, 16> zobristCastle{};
 inline std::array<uint64_t, 9> zobristEP{};
 
 enum class Piece : uint8_t {
@@ -162,31 +163,37 @@ struct UndoMove {
 };
 
 struct Move {
-    Position from;
-    Position to;
+    Position from = 0;
+    Position to = 0;
     uint8_t flags = 0;
     Piece promote = Piece::NONE;
 
     std::string toAlgebraicNotation(uint8_t coloredPiece) const;
     std::string toSimpleNotation() const;
+    std::string toString() const;
+
+    inline bool operator==(const Move &other) const {
+        return *reinterpret_cast<const uint32_t *>(this) ==
+               *reinterpret_cast<const uint32_t *>(&other);
+    }
 };
 
 template <typename T, std::size_t N> struct StackList {
     T stack[N];
-    uint8_t count = 0;
+    uint32_t count = 0;
 
-    void push_back(Move m) { stack[count++] = m; }
+    void push_back(T m) { stack[count++] = m; }
     T &push_back_empty() { return stack[count++]; }
     void pop_back() { count--; }
 
     T &back() { return stack[count - 1]; }
 
     void remove_unordered(size_t n) {
-        if (n == count - 1) {
-            count--;
+        count--;
+        if (n == count) {
             return;
         }
-        stack[n] = stack[--count];
+        stack[n] = stack[count];
     }
 
     size_t size() { return count; }
@@ -195,14 +202,25 @@ template <typename T, std::size_t N> struct StackList {
     void clear() { count = 0; }
     bool empty() { return count == 0; }
 
-    Move *begin() { return stack; }
-    Move *end() { return stack + count; }
+    T *begin() { return stack; }
+    T *end() { return stack + count; }
 
-    const Move *begin() const { return stack; }
-    const Move *end() const { return stack + count; }
+    const T *begin() const { return stack; }
+    const T *end() const { return stack + count; }
 
-    Move &operator[](size_t i) { return stack[i]; }
-    const Move &operator[](size_t i) const { return stack[i]; }
+    T &operator[](size_t i) {
+        if (i >= count) {
+            std::print("oh no!\n");
+        }
+        return stack[i];
+    }
+    const T &operator[](size_t i) const {
+        if (i >= count) {
+            std::print("oh no!\n");
+        }
+
+        return stack[i];
+    }
 };
 
 typedef StackList<Move, 256> MoveList;
@@ -242,11 +260,13 @@ struct Game {
     uint32_t perft(uint32_t n);
     uint64_t calculateHash();
     void fromSimpleBoard();
+    bool isConsistent();
     void loadFen(const std::string &fen);
     void loadFen(std::stringstream &ss);
     void loadStartingPos();
     std::string dumpFen();
     void showBoard();
+    void showAll();
 };
 
 void perftInfo(Game &game, uint32_t n);

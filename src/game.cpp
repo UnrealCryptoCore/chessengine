@@ -146,6 +146,10 @@ std::string Move::toAlgebraicNotation(uint8_t coloredPiece) const {
     return res;
 }
 
+std::string Move::toString() const {
+    return std::format("from: {} to: {} flags: {} promote: {}", from, to, flags, (uint8_t)promote);
+}
+
 void Game::reset() {
     color = WHITE;
     occupancyBoth = 0;
@@ -157,8 +161,8 @@ void Game::reset() {
     fullmoves = 1;
     board.fill((uint8_t)Piece::NONE);
     for (uint8_t piece = 0; piece < NUMBER_CHESS_PIECES; piece++) {
-        bitboard[WHITE][piece] = 0;
-        bitboard[BLACK][piece] = 0;
+        bitboard[WHITE][piece] = 0ULL;
+        bitboard[BLACK][piece] = 0ULL;
     }
     undoStack.clear();
     hash = calculateHash();
@@ -452,7 +456,7 @@ void Game::playMove(Move move) {
     }
     case MOVE_DOUBLE_PAWN: {
         hash ^= zobristEP[ep];
-        ep = file_from_pos(move.from); // FORWARD(move.from, signedColor[color]);
+        ep = file_from_pos(move.from);
         hash ^= zobristEP[ep];
         break;
     }
@@ -544,7 +548,7 @@ void Game::playMove(std::string &move) {
     Position to = str2pos(move.substr(2, 4));
     Piece promote = Piece::NONE;
     if (move.size() >= 5) {
-        promote = (Piece)char2Piece(move.at(4));
+        promote = piece_from_piece(char2Piece(move.at(4)));
     }
     uint8_t flags = 0;
     if (board[to] != (uint8_t)Piece::NONE) {
@@ -555,10 +559,10 @@ void Game::playMove(std::string &move) {
             flags = MOVE_CASTLE;
         }
     } else if (board[from] == (uint8_t)Piece::PAWN) {
-        uint8_t rnkFrom = rank_from_pos(from);
-        uint8_t rnkTo = rank_from_pos(to);
-        uint8_t fileFrom = file_from_pos(from);
-        uint8_t fileTo = file_from_pos(to);
+        int8_t rnkFrom = rank_from_pos(from);
+        int8_t rnkTo = rank_from_pos(to);
+        int8_t fileFrom = file_from_pos(from);
+        int8_t fileTo = file_from_pos(to);
         if (std::abs(rnkFrom - rnkTo) > 1) {
             flags = MOVE_DOUBLE_PAWN;
         }
@@ -572,6 +576,7 @@ void Game::playMove(std::string &move) {
         .flags = flags,
         .promote = promote,
     };
+    std::print("{}\n", m.toString());
     playMove(m);
 }
 
@@ -675,7 +680,7 @@ void Game::loadFen(std::stringstream &ss) {
     } else {
         uint8_t file = file_from_char(fenEnPassant.at(0));
         uint8_t rank = fenEnPassant.at(1) - '1';
-        ep = file; // coords_to_pos(file, rank);
+        ep = file;
     }
     hash = calculateHash();
 }
@@ -759,6 +764,36 @@ void Game::showBoard() {
         std::print(" {}", c);
     }
     std::print("\n");
+}
+
+void Game::showAll() {
+    showBoard();
+    for (uint8_t color = 0; color < 2; color++) {
+        for (uint8_t i = 0; i < (uint8_t)Piece::NONE; i++) {
+            std::print("color {} piece: {}\n", color, pieceSymbols[color][i]);
+            showBitBoard(bitboard[color][i]);
+            std::print("\n");
+        }
+    }
+}
+
+bool Game::isConsistent() {
+    for (auto [pos, pb] : std::views::enumerate(board)) {
+        uint8_t color = color_from_piece(pb);
+        Piece piece = piece_from_piece(pb);
+        if (piece == Piece::NONE) {
+            continue;
+        }
+        // set_bit(bitboard[color][(uint8_t)piece], pos);
+        if (!is_set(bitboard[color][(uint8_t)piece], pos)) {
+
+            std::print("inconsistency!!!");
+            showBoard();
+            showBitBoard(bitboard[color][(uint8_t)piece]);
+            exit(1);
+        }
+    }
+    return true;
 }
 
 template <std::size_t N>
@@ -912,15 +947,19 @@ void initConstants() {
 void perftInfo(Game &game, uint32_t n) {
     MoveList moves;
     uint32_t count = 0;
-    game.validMoves(moves);
+    game.pseudoLegalMoves(moves);
     for (auto move : moves) {
         game.playMove(move);
+        if (game.isCheck(game.color)) {
+            game.undoMove(move);
+            continue;
+        }
         uint32_t tmp = game.perft(n - 1);
         count += tmp;
         std::print("{}: {}\n", move.toSimpleNotation(), tmp);
         game.undoMove(move);
     }
 
-    std::print("\n\nnodes searched {}: \n", count);
+    std::print("\nnodes searched {}: \n", count);
 }
 } // namespace ChessGame

@@ -9,12 +9,12 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(ENGINE_VERSION "v0.3_alphabeta_mo")
+set(ENGINE_VERSION "v0.4_alphabeta_mott")
 
 add_library(chess_game 
     src/game.cpp
     src/evaluation.cpp
-    src/minimax.cpp
+    src/engine_search.cpp
 )
 target_include_directories(chess_game 
     PUBLIC include
