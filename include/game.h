@@ -10,7 +10,6 @@
 #include <sstream>
 #include <string>
 
-#define NUMBER_CHESS_PIECES 6
 #define RANK_MASK(rank) (0xffULL << ((rank) * 8))
 #define FORWARD(pos, amount) ((pos) + 8 * (amount))
 #define BACKWARD(pos, amount) ((pos) - 8 * (amount))
@@ -30,18 +29,20 @@
 
 #define PIECE_COLOR_MASK 0b1000
 
-#define MOVE_CAPTURE 1
+/*#define MOVE_CAPTURE 1
 #define MOVE_EP 2
 #define MOVE_CASTLE 4
-#define MOVE_DOUBLE_PAWN 8
+#define MOVE_DOUBLE_PAWN 8*/
 
 namespace ChessGame {
 
-typedef uint8_t Position;
-typedef uint64_t BitBoard;
+using Position = uint8_t;
+using BitBoard = uint64_t;
 
-const std::array<char, NUMBER_CHESS_PIECES + 1> pieceChars{'k', 'q', 'r', 'b', 'n', 'p', ' '};
-const std::array<std::array<std::string, NUMBER_CHESS_PIECES + 1>, 2> pieceSymbols{{
+constexpr int numberChessPieces = 6;
+
+const std::array<char, numberChessPieces + 1> pieceChars{'k', 'q', 'r', 'b', 'n', 'p', ' '};
+const std::array<std::array<std::string, numberChessPieces + 1>, 2> pieceSymbols{{
     {"♚", "♛", "♜", "♝", "♞", "♟", " "},
     {"♔", "♕", "♖", "♗", "♘", "♙", " "},
 }};
@@ -66,10 +67,18 @@ inline std::array<BitBoard, 64> rookMoves;
 inline std::array<BitBoard, 64> bishopMoves;
 inline std::array<uint8_t, 64> castlingBoardMask;
 
-inline uint64_t zobristPieces[2][NUMBER_CHESS_PIECES + 1][64];
+inline uint64_t zobristPieces[2][numberChessPieces + 1][64];
 inline uint64_t zobristSide;
 inline std::array<uint64_t, 16> zobristCastle{};
 inline std::array<uint64_t, 9> zobristEP{};
+
+enum class MoveType : uint8_t {
+    NONE = 0,
+    MOVE_CAPTURE = 1,
+    MOVE_EP = 2,
+    MOVE_CASTLE = 4,
+    MOVE_DOUBLE_PAWN = 8,
+};
 
 enum class Piece : uint8_t {
     KING = 0,
@@ -165,7 +174,7 @@ struct UndoMove {
 struct Move {
     Position from = 0;
     Position to = 0;
-    uint8_t flags = 0;
+    MoveType flags = MoveType::NONE;
     Piece promote = Piece::NONE;
 
     std::string toAlgebraicNotation(uint8_t coloredPiece) const;
@@ -226,10 +235,10 @@ template <typename T, std::size_t N> struct StackList {
 typedef StackList<Move, 256> MoveList;
 
 struct Game {
-    std::array<std::array<BitBoard, NUMBER_CHESS_PIECES>, 2> bitboard;
+    std::array<std::array<BitBoard, numberChessPieces>, 2> bitboard;
     std::array<uint8_t, 64> board;
     uint8_t color;
-    Position ep = NO_EP;
+    uint8_t ep = NO_EP;
     uint8_t castling = 0;
     uint8_t halfmove = 0;
     uint8_t fullmoves = 0;
@@ -247,7 +256,9 @@ struct Game {
     void validBishopMoves(Position pos, MoveList &moves);
     void validPawnMoves(Position pos, MoveList &moves);
     void validBitMaskMoves(Position pos, MoveList &moves, std::array<BitBoard, 64> boards);
-    bool isSqaureAttacked(BitBoard board, uint8_t enemy);
+    bool isSqaureAttacked(Position pos, uint8_t color);
+    Piece getLva(BitBoard attackers, uint8_t offset);
+    BitBoard squareAttackers(Position pos, uint8_t color);
     bool isValidMove(Move move);
     bool isCheck(uint8_t color);
     void validMoves(MoveList &moves);

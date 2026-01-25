@@ -100,10 +100,10 @@ std::string Move::toSimpleNotation() const {
 std::string Move::toAlgebraicNotation(uint8_t coloredPiece) const {
     Piece piece = piece_from_piece(coloredPiece);
     uint8_t color = color_from_piece(coloredPiece);
-    bool capture = flags == MOVE_CAPTURE;
-    bool ep = flags == MOVE_EP;
+    bool capture = flags == MoveType::MOVE_CAPTURE;
+    bool ep = flags == MoveType::MOVE_EP;
 
-    if (flags & MOVE_CASTLE) {
+    if (flags == MoveType::MOVE_CASTLE) {
         uint8_t side = to > 4;
         if (side == CASTLING_QUEEN) {
             return "0-0-0";
@@ -147,7 +147,8 @@ std::string Move::toAlgebraicNotation(uint8_t coloredPiece) const {
 }
 
 std::string Move::toString() const {
-    return std::format("from: {} to: {} flags: {} promote: {}", from, to, flags, (uint8_t)promote);
+    return std::format("from: {} to: {} flags: {} promote: {}", from, to, (uint8_t)flags,
+                       (uint8_t)promote);
 }
 
 void Game::reset() {
@@ -160,7 +161,7 @@ void Game::reset() {
     halfmove = 0;
     fullmoves = 1;
     board.fill((uint8_t)Piece::NONE);
-    for (uint8_t piece = 0; piece < NUMBER_CHESS_PIECES; piece++) {
+    for (uint8_t piece = 0; piece < numberChessPieces; piece++) {
         bitboard[WHITE][piece] = 0ULL;
         bitboard[BLACK][piece] = 0ULL;
     }
@@ -171,7 +172,7 @@ void Game::reset() {
 void Game::calculateOccupancy() {
     occupancy[WHITE] = 0;
     occupancy[BLACK] = 0;
-    for (uint8_t p = 0; p < NUMBER_CHESS_PIECES; p++) {
+    for (uint8_t p = 0; p < numberChessPieces; p++) {
         occupancy[WHITE] |= bitboard[WHITE][p];
         occupancy[BLACK] |= bitboard[BLACK][p];
     }
@@ -182,7 +183,7 @@ void checkOccupancy(Game &game) {
     BitBoard occupancy[2];
     occupancy[WHITE] = 0;
     occupancy[BLACK] = 0;
-    for (uint8_t p = 0; p < NUMBER_CHESS_PIECES; p++) {
+    for (uint8_t p = 0; p < numberChessPieces; p++) {
         occupancy[WHITE] |= game.bitboard[WHITE][p];
         occupancy[BLACK] |= game.bitboard[BLACK][p];
     }
@@ -244,7 +245,8 @@ void Game::validRookMoves(Position pos, MoveList &moves) {
     BitBoard attacks = rookAttacks(pos);
     attacks &= ~occupancy[color];
     for (Position to : BitRange{attacks}) {
-        uint8_t flags = MOVE_CAPTURE * (board[to] != (uint8_t)Piece::NONE);
+        MoveType flags =
+            (MoveType)((uint8_t)(MoveType::MOVE_CAPTURE) * (board[to] != (uint8_t)Piece::NONE));
         moves.push_back(Move{pos, to, flags});
     }
 }
@@ -253,7 +255,8 @@ void Game::validBishopMoves(Position pos, MoveList &moves) {
     BitBoard attacks = bishopAttacks(pos);
     attacks &= ~occupancy[color];
     for (Position to : BitRange{attacks}) {
-        uint8_t flags = MOVE_CAPTURE * (board[to] != (uint8_t)Piece::NONE);
+        MoveType flags =
+            (MoveType)((uint8_t)(MoveType::MOVE_CAPTURE) * (board[to] != (uint8_t)Piece::NONE));
         moves.push_back(Move{pos, to, flags});
     }
 }
@@ -284,20 +287,20 @@ void Game::validPawnMoves(Position pos, MoveList &moves) {
 
     bitmoves = pawnAttacks[color][pos] & occupancy[!color];
     for (Position to : BitRange{bitmoves}) {
-        uint8_t flags = MOVE_CAPTURE;
+        MoveType flags = MoveType::MOVE_CAPTURE;
         addPawnMoves(moves, Move{pos, to, flags}, promote);
     }
 
     bitmoves = pawnAttacks[color][pos] & epMask;
     for (Position to : BitRange{bitmoves}) {
-        uint8_t flags = MOVE_EP;
+        MoveType flags = MoveType::MOVE_EP;
         addPawnMoves(moves, Move{pos, to, flags}, promote);
     }
 
     Position move2 = FORWARD(move, forward);
     if (is_on_rank(pos, sndHomeRank[color]) && !is_set(occupancyBoth, move) &&
         !is_set(occupancyBoth, move2)) {
-        flags = MOVE_DOUBLE_PAWN;
+        MoveType flags = MoveType::MOVE_DOUBLE_PAWN;
         moves.push_back(Move{pos, move2, flags});
     }
 }
@@ -305,7 +308,8 @@ void Game::validPawnMoves(Position pos, MoveList &moves) {
 void Game::validBitMaskMoves(Position pos, MoveList &moves, std::array<BitBoard, 64> boards) {
     BitBoard bitmoves = boards[pos] & ~occupancy[color];
     for (Position to : BitRange{bitmoves}) {
-        uint8_t flags = MOVE_CAPTURE * is_set(occupancy[!color], to);
+        MoveType flags =
+            (MoveType)((uint8_t)MoveType::MOVE_CAPTURE * is_set(occupancy[!color], to));
         moves.push_back(Move{pos, to, flags});
     }
 }
@@ -324,13 +328,13 @@ void Game::pseudoLegalMoves(MoveList &moves) {
     BitBoard kings = bitboard[color][(uint8_t)Piece::KING];
     for (Position pos : BitRange{kings}) {
         validBitMaskMoves(pos, moves, kingMoves);
-        uint8_t flags = MOVE_CASTLE;
+        MoveType flags = MoveType::MOVE_CASTLE;
         for (uint8_t side = 0; side < 2; side++) {
             if (castling & castlingMask[color][side] &&
                 (castlingPathMasks[color][side] & occupancyBoth) == 0) {
                 bool pathAttack = false;
                 for (Position pos : BitRange{castlingCheckMasks[color][side]}) {
-                    if (isSqaureAttacked(position_to_bitboard(pos), !color)) {
+                    if (isSqaureAttacked(pos, !color)) {
                         pathAttack = true;
                         break;
                     }
@@ -359,8 +363,27 @@ void Game::pseudoLegalMoves(MoveList &moves) {
     }
 }
 
-bool Game::isSqaureAttacked(BitBoard board, uint8_t enemy) {
-    Position pos = bitboard_to_position(board);
+Piece Game::getLva(BitBoard attackers, uint8_t offset) {
+    
+}
+
+BitBoard Game::squareAttackers(Position pos, uint8_t color) {
+    BitBoard bAttacks = bishopAttacks(pos);
+    BitBoard rAttacks = rookAttacks(pos);
+    BitBoard enemyPawns = bitboard[color][(uint8_t)Piece::PAWN];
+    BitBoard enemyQueens = bitboard[color][(uint8_t)Piece::QUEEN];
+    BitBoard attacks = pawnAttacks[!color][pos];
+    BitBoard attackers = enemyPawns & attacks;
+
+    attackers |= knightMoves[pos] & bitboard[color][(uint8_t)Piece::KNIGHT];
+    attackers |= bAttacks & bitboard[color][(uint8_t)Piece::BISHOP];
+    attackers |= rAttacks & bitboard[color][(uint8_t)Piece::BISHOP];
+    attackers |= (rAttacks | bAttacks) & enemyQueens;
+    attackers |= (bitboard[color][(uint8_t)Piece::KING] & kingMoves[pos]);
+    return attackers;
+}
+
+bool Game::isSqaureAttacked(Position pos, uint8_t enemy) {
     BitBoard enemyPawns = bitboard[enemy][(uint8_t)Piece::PAWN];
     BitBoard attacks;
 
@@ -390,7 +413,9 @@ bool Game::isSqaureAttacked(BitBoard board, uint8_t enemy) {
 }
 
 bool Game::isCheck(uint8_t color) {
-    if (isSqaureAttacked(bitboard[!color][(uint8_t)Piece::KING], color)) {
+    BitBoard board = bitboard[!color][(uint8_t)Piece::KING];
+    Position pos = bitboard_to_position(board);
+    if (isSqaureAttacked(pos, color)) {
         return true;
     }
     return false;
@@ -429,11 +454,11 @@ void Game::playMove(Move move) {
 
     Position to = move.to;
     switch (move.flags) {
-    case MOVE_EP: {
+    case MoveType::MOVE_EP: {
         to = BACKWARD(move.to, signedColor[color]);
         /* falltrough */
     }
-    case MOVE_CAPTURE: {
+    case MoveType::MOVE_CAPTURE: {
         undo.capture = board[to];
 
         Piece pieceTo = piece_from_piece(undo.capture);
@@ -443,7 +468,7 @@ void Game::playMove(Move move) {
         hash ^= zobristPieces[!color][(uint8_t)pieceTo][to];
         break;
     }
-    case MOVE_CASTLE: {
+    case MoveType::MOVE_CASTLE: {
         uint8_t side = move.to > move.from;
         Position rFrom = castlingRookMovesFrom[color][side];
         Position rTo = castlingRookMovesTo[color][side];
@@ -454,12 +479,14 @@ void Game::playMove(Move move) {
 
         break;
     }
-    case MOVE_DOUBLE_PAWN: {
+    case MoveType::MOVE_DOUBLE_PAWN: {
         hash ^= zobristEP[ep];
         ep = file_from_pos(move.from);
         hash ^= zobristEP[ep];
         break;
     }
+    case MoveType::NONE:
+        break;
     }
 
     uint8_t pieceTo = board[move.from];
@@ -497,17 +524,17 @@ void Game::undoMove(Move move) {
     castling = undo.castling;
     ep = undo.ep;
 
-    if (move.flags == MOVE_CASTLE) {
+    if (move.flags == MoveType::MOVE_CASTLE) {
         uint8_t side = move.to > move.from;
         Position rFrom = castlingRookMovesFrom[color][side];
         Position rTo = castlingRookMovesTo[color][side];
         movePiece(rTo, rFrom);
     }
 
-    if (move.flags & (MOVE_CAPTURE | MOVE_EP)) {
+    if ((uint8_t)move.flags & ((uint8_t)MoveType::MOVE_CAPTURE | (uint8_t)MoveType::MOVE_EP)) {
         Piece capture = piece_from_piece(undo.capture);
         Position to = move.to;
-        if (move.flags == MOVE_EP) {
+        if (move.flags == MoveType::MOVE_EP) {
             to = BACKWARD(move.to, signedColor[color]);
         }
 
@@ -550,13 +577,13 @@ void Game::playMove(std::string &move) {
     if (move.size() >= 5) {
         promote = piece_from_piece(char2Piece(move.at(4)));
     }
-    uint8_t flags = 0;
+    MoveType flags = MoveType::NONE;
     if (board[to] != (uint8_t)Piece::NONE) {
-        flags = MOVE_CAPTURE;
+        flags = MoveType::MOVE_CAPTURE;
     }
     if (piece_from_piece(board[from]) == Piece::KING) {
         if (std::abs((int8_t)file_from_pos(from) - file_from_pos(to)) > 1) {
-            flags = MOVE_CASTLE;
+            flags = MoveType::MOVE_CASTLE;
         }
     } else if (board[from] == (uint8_t)Piece::PAWN) {
         int8_t rnkFrom = rank_from_pos(from);
@@ -564,10 +591,10 @@ void Game::playMove(std::string &move) {
         int8_t fileFrom = file_from_pos(from);
         int8_t fileTo = file_from_pos(to);
         if (std::abs(rnkFrom - rnkTo) > 1) {
-            flags = MOVE_DOUBLE_PAWN;
+            flags = MoveType::MOVE_DOUBLE_PAWN;
         }
         if (fileFrom != fileTo && board[to] == (uint8_t)Piece::NONE) {
-            flags = MOVE_EP;
+            flags = MoveType::MOVE_EP;
         }
     }
     Move m{
@@ -919,8 +946,8 @@ void initZobrist() {
             zobristPieces[WHITE][piece][pos] = splitmix64(seed);
             zobristPieces[BLACK][piece][pos] = splitmix64(seed);
         }
-        zobristPieces[WHITE][NUMBER_CHESS_PIECES][pos] = 0;
-        zobristPieces[BLACK][NUMBER_CHESS_PIECES][pos] = 0;
+        zobristPieces[WHITE][numberChessPieces][pos] = 0;
+        zobristPieces[BLACK][numberChessPieces][pos] = 0;
     }
 
     zobristSide = splitmix64(seed);

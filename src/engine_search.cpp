@@ -8,6 +8,15 @@
 
 namespace Search {
 
+int32_t see(ChessGame::Game &game, ChessGame::Position pos, uint8_t color) {
+    int32_t value = 0;
+    ChessGame::BitBoard attackers[2];
+    attackers[WHITE] = game.squareAttackers(pos, BLACK);
+    attackers[BLACK] = game.squareAttackers(pos, WHITE);
+
+    return value;
+}
+
 void TranspositionTable::setsize(uint32_t mb) {
     size_t entries = (1014 * 1024 * mb) / sizeof(TableEntry);
     size_t pow2 = 1;
@@ -29,7 +38,7 @@ uint32_t TranspositionTable::hashFull() const {
 }
 
 void TranspositionTable::clear() {
-    //std::fill(table.begin(), table.end(), TableEntry{});
+    // std::fill(table.begin(), table.end(), TableEntry{});
     memset(&table[0], 0, sizeof(TableEntry) * table.size());
 }
 
@@ -137,10 +146,13 @@ Score score_move(ChessGame::Game &game, ChessGame::Move move) {
     if (move.promote != ChessGame::Piece::NONE) {
         return 10000;
     }
-    if (move.flags | MOVE_CAPTURE) {
+    uint8_t own = (uint8_t)ChessGame::piece_from_piece(game.board[move.from]);
+    return ChessGame::Evaluation::pieceValues[own];
+    if (true || (move.flags == ChessGame::MoveType::MOVE_CAPTURE)) {
         uint8_t own = (uint8_t)ChessGame::piece_from_piece(game.board[move.from]);
         uint8_t enemy = (uint8_t)ChessGame::piece_from_piece(game.board[move.to]);
-        return ChessGame::Evaluation::pieceValues[own] + ChessGame::Evaluation::pieceValues[enemy];
+        return (ChessGame::Evaluation::pieceValues[own] +
+                ChessGame::Evaluation::pieceValues[enemy]);
     }
 
     return 0;
