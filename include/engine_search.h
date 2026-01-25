@@ -77,5 +77,4 @@ Score alphaBetaMO(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t de
 
 Score alphaBetaMOTT(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta,
                     int32_t depth);
-
 } // namespace Search

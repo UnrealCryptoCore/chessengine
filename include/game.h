@@ -115,9 +115,7 @@ inline uint8_t color_from_piece(uint8_t piece) { return (piece & PIECE_COLOR_MAS
 
 inline Piece piece_from_piece(uint8_t piece) { return (Piece)(piece & (~PIECE_COLOR_MASK)); }
 
-inline uint8_t to_piece(Piece piece, uint8_t color) {
-    return (color * PIECE_COLOR_MASK) | (uint8_t)piece;
-}
+inline uint8_t to_piece(Piece piece, uint8_t color) { return (color * PIECE_COLOR_MASK) | (uint8_t)piece; }
 
 inline uint64_t safe_shift(uint64_t x, uint8_t shift) {
     constexpr unsigned W = 64;
@@ -136,8 +134,7 @@ const std::array<std::array<Position, 2>, 2> castlingRookMovesFrom{
     {{coords_to_pos(0, 0), coords_to_pos(7, 0)}, {coords_to_pos(0, 7), coords_to_pos(7, 7)}}};
 
 const std::array<std::array<uint8_t, 2>, 2> castlingMask{
-    {{CASTLING_QUEEN_MASK_WHITE, CASTLING_KING_MASK_WHITE},
-     {CASTLING_QUEEN_MASK_BLACK, CASTLING_KING_MASK_BLACK}}};
+    {{CASTLING_QUEEN_MASK_WHITE, CASTLING_KING_MASK_WHITE}, {CASTLING_QUEEN_MASK_BLACK, CASTLING_KING_MASK_BLACK}}};
 
 uint64_t reverse_bits(uint64_t x);
 Position str2pos(std::string str);
@@ -182,14 +179,18 @@ struct Move {
     std::string toString() const;
 
     inline bool operator==(const Move &other) const {
-        return *reinterpret_cast<const uint32_t *>(this) ==
-               *reinterpret_cast<const uint32_t *>(&other);
+        return *reinterpret_cast<const uint32_t *>(this) == *reinterpret_cast<const uint32_t *>(&other);
     }
 };
 
+struct ScoreMove {
+    Move move;
+    int16_t score;
+};
+
 template <typename T, std::size_t N> struct StackList {
-    T stack[N];
-    uint32_t count = 0;
+    std::array<T, N> stack;
+    uint16_t count = 0;
 
     void push_back(T m) { stack[count++] = m; }
     T &push_back_empty() { return stack[count++]; }
@@ -205,34 +206,29 @@ template <typename T, std::size_t N> struct StackList {
         stack[n] = stack[count];
     }
 
-    size_t size() { return count; }
+    inline void swap(uint16_t a, uint16_t b) {
+        T tmp = stack[a];
+        stack[a] = stack[b];
+        stack[b] = tmp;
+    }
+
+    size_t size() const { return count; }
     void resize(size_t size) { count = size; }
 
     void clear() { count = 0; }
     bool empty() { return count == 0; }
 
-    T *begin() { return stack; }
-    T *end() { return stack + count; }
+    T *begin() { return &stack[0]; }
+    T *end() { return &stack[count]; }
 
-    const T *begin() const { return stack; }
-    const T *end() const { return stack + count; }
+    const T *begin() const { return &stack[0]; }
+    const T *end() const { return &stack[count]; }
 
-    T &operator[](size_t i) {
-        if (i >= count) {
-            std::print("oh no!\n");
-        }
-        return stack[i];
-    }
-    const T &operator[](size_t i) const {
-        if (i >= count) {
-            std::print("oh no!\n");
-        }
-
-        return stack[i];
-    }
+    T &operator[](size_t i) { return stack[i]; }
+    const T &operator[](size_t i) const { return stack[i]; }
 };
 
-typedef StackList<Move, 256> MoveList;
+using MoveList = StackList<ScoreMove, 256>;
 
 struct Game {
     std::array<std::array<BitBoard, numberChessPieces>, 2> bitboard;
@@ -257,7 +253,7 @@ struct Game {
     void validPawnMoves(Position pos, MoveList &moves);
     void validBitMaskMoves(Position pos, MoveList &moves, std::array<BitBoard, 64> boards);
     bool isSqaureAttacked(Position pos, uint8_t color);
-    Piece getLva(BitBoard attackers, uint8_t offset);
+    Position getLVA(BitBoard attackers, uint8_t color);
     BitBoard squareAttackers(Position pos, uint8_t color);
     bool isValidMove(Move move);
     bool isCheck(uint8_t color);

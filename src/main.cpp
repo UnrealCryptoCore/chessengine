@@ -14,7 +14,7 @@ void play(ChessGame::Game &game) {
         ChessGame::MoveList moves;
         game.validMoves(moves);
         for (auto [idx, move] : std::views::enumerate(moves)) {
-            std::print("{}: {}, ", idx, move.toAlgebraicNotation(game.board[move.from]));
+            std::print("{}: {}, ", idx, move.move.toAlgebraicNotation(game.board[move.move.from]));
         }
         while (1) {
             std::print("\nEnter move number: ");
@@ -25,8 +25,8 @@ void play(ChessGame::Game &game) {
                 break;
             } else {
                 uint8_t move = std::stoi(inp);
-                game.playMove(moves[move]);
-                moveHistory.push_back(moves[move]);
+                game.playMove(moves[move].move);
+                moveHistory.push_back(moves[move].move);
                 break;
             }
         }
