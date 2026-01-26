@@ -1,9 +1,9 @@
 #pragma once
 
 #include "game.h"
+#include <chrono>
 #include <cstdint>
 #include <vector>
-#include <chrono>
 
 namespace Search {
 
@@ -75,6 +75,8 @@ Score simpleAlphaBeta(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_
 
 Score alphaBetaMO(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
 
-Score alphaBetaMOTT(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta,
-                    int32_t depth);
+Score alphaBetaMOTT(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
+
+Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score beta);
+
 } // namespace Search

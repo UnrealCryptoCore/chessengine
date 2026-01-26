@@ -99,13 +99,13 @@ inline bool is_set(BitBoard bb, Position pos) { return (bb & (1ULL << pos)) != 0
 inline BitBoard position_to_bitboard(Position pos) { return 1ULL << pos; }
 inline Position bitboard_to_position(BitBoard bb) { return std::countr_zero(bb); }
 
-inline Position coords_to_pos(Position x, Position y) { return x + y * 8; }
+inline constexpr Position coords_to_pos(Position x, Position y) { return x + y * 8; }
 
 inline bool is_on_rank(Position pos, uint8_t rank) { return (1ULL << pos) & RANK_MASK(rank); }
 
-inline uint8_t file_from_pos(Position pos) { return pos % 8; }
+inline constexpr uint8_t file_from_pos(Position pos) { return pos % 8; }
 
-inline uint8_t rank_from_pos(Position pos) { return pos >> 3; }
+inline constexpr uint8_t rank_from_pos(Position pos) { return pos >> 3; }
 
 inline uint8_t file_from_char(char c) { return c - 'a'; };
 

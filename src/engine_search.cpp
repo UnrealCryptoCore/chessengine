@@ -254,6 +254,7 @@ inline ChessGame::ScoreMove find_next_rm(ChessGame::Game &game, ChessGame::MoveL
 
 Score alphaBetaMOTT(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth) {
     ctx.nodes++;
+
     if (ctx.stop) {
         return 0;
     }
@@ -263,7 +264,8 @@ Score alphaBetaMOTT(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, in
     }
 
     if (depth == 0) {
-        return ChessGame::signedColor[game.color] * ChessGame::Evaluation::evaluate(game);
+        // return ChessGame::signedColor[game.color] * ChessGame::Evaluation::evaluate(game);
+        return quiescence(ctx, game, alpha, beta);
     }
 
     uint64_t entryIdx = game.hash & (ctx.table->size() - 1);
@@ -348,6 +350,16 @@ Score alphaBetaMOTT(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, in
 }
 
 Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score beta) {
+    ctx.nodes++;
+
+    if (ctx.stop) {
+        return 0;
+    }
+
+    if ((ctx.nodes & 2047) == 0 && ctx.timeUp()) {
+        ctx.stop = true;
+    }
+
     Score static_eval = ChessGame::signedColor[game.color] * ChessGame::Evaluation::evaluate(game);
     Score best_value = static_eval;
     if (best_value > beta) {
