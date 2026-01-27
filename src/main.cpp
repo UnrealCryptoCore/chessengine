@@ -12,7 +12,7 @@ void play(ChessGame::Game &game) {
     while (1) {
         game.showBoard();
         ChessGame::MoveList moves;
-        game.validMoves(moves);
+        game.legal_moves(moves);
         for (auto [idx, move] : std::views::enumerate(moves)) {
             std::print("{}: {}, ", idx, move.move.toAlgebraicNotation(game.board[move.move.from]));
         }

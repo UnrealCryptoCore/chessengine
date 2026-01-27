@@ -253,12 +253,12 @@ struct Game {
     void validPawnMoves(Position pos, MoveList &moves);
     void validBitMaskMoves(Position pos, MoveList &moves, std::array<BitBoard, 64> boards);
     bool isSqaureAttacked(Position pos, uint8_t color);
-    Position getLVA(BitBoard attackers, uint8_t color);
+    Position get_lva(BitBoard attackers, uint8_t color);
     BitBoard squareAttackers(Position pos, uint8_t color);
-    bool isValidMove(Move move);
-    bool isCheck(uint8_t color);
-    void validMoves(MoveList &moves);
-    void pseudoLegalMoves(MoveList &moves);
+    bool is_valid_move(Move move);
+    bool is_check(uint8_t color);
+    void legal_moves(MoveList &moves);
+    void pseudo_legal_moves(MoveList &moves);
     void movePiece(Position from, Position to, Piece pieceFrom, uint8_t pieceTo);
     void movePiece(Position from, Position to);
     void playMove(std::string &move);

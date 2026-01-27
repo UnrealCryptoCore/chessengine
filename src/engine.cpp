@@ -1,12 +1,17 @@
 #include "engine_search.h"
 #include "game.h"
 #include <chrono>
+#include <cmath>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <ctime>
 #include <format>
 #include <fstream>
 #include <ios>
 #include <iostream>
 #include <ostream>
+#include <print>
 #include <ranges>
 #include <sstream>
 #include <string>
@@ -115,12 +120,10 @@ struct IO {
 
     static void sendReadyOk() { send("readyok"); }
 
-    static void sendBestMove(ChessGame::Move move) {
-        send(std::format("bestmove {}", move.toSimpleNotation()));
-    }
+    static void sendBestMove(ChessGame::Move move) { send(std::format("bestmove {}", move.toSimpleNotation())); }
 
-    static void sendSearchInfo(Search::SearchResult &result, uint32_t depth, int64_t time,
-                               uint32_t nps, uint32_t hashfull) {
+    static void sendSearchInfo(Search::SearchResult &result, uint32_t depth, int64_t time, uint32_t nps,
+                               uint32_t hashfull) {
         std::string pvs = "";
         for (auto [i, move] : std::views::enumerate(result.pv)) {
             if (i > 0) {
@@ -134,8 +137,8 @@ struct IO {
         } else {
             score = std::format("cp {}", result.score);
         }
-        send(std::format("info depth {} score {} time {} nodes {} nps {} pv {} hashfull {}", depth,
-                         score, time, result.nodes, nps, pvs, hashfull));
+        send(std::format("info depth {} score {} time {} nodes {} nps {} pv {} hashfull {}", depth, score, time,
+                         result.nodes, nps, pvs, hashfull));
     }
 
     static bool recv(std::string &s) { return static_cast<bool>(std::getline(std::cin, s)); }
@@ -153,9 +156,86 @@ Search::SearchResult search(Search::SearchContext &ctx, ChessGame::Game &game, u
     };
 }
 
+Search::SearchResult iterative_deepening(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
+    Search::SearchResult lastResult;
+    auto startDepth = ctx.timeStart;
+
+    game.legal_moves(ctx.moves);
+
+    for (uint32_t i = 1; i <= depth; i++) {
+        Search::search_root(ctx, game, i);
+        Search::sort_moves(ctx.moves);
+
+        if (ctx.stop) {
+            break;
+        }
+
+        ChessGame::ScoreMove bestMove = ctx.moves[0];
+
+        auto end = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - startDepth).count();
+        Search::SearchResult result{
+            .score = bestMove.score,
+            .bestMove = bestMove.move,
+            .nodes = ctx.nodes,
+            .pv = {bestMove.move},
+        };
+        IO::sendSearchInfo(result, i, elapsed, ctx.nodes * 1000.0f / elapsed, ctx.table->hashFull());
+
+        startDepth = end;
+        lastResult = result;
+
+        if (Search::is_mate(result.score)) {
+            break;
+        }
+    }
+    return lastResult;
+}
+
+ChessGame::Move choose_move(Search::SearchContext &ctx) {
+    constexpr Search::Score window = 20;
+    Search::Score treshold = ctx.moves[0].score;
+    if (Search::is_mate(treshold)) {
+        return ctx.moves[0].move;
+    }
+    treshold -= window;
+
+    float max = 0;
+    float counter = 0;
+    for (uint16_t i = 0; i < ctx.moves.size(); i++) {
+        int32_t score = ctx.moves[i].score;
+        if (score <= treshold) {
+            break;
+        }
+        max += std::exp(score * 0.001f);
+    }
+
+    float r = static_cast<float>(rand()) / (static_cast<float>(RAND_MAX / max));
+
+    for (int32_t i = 0; i < (int32_t)ctx.moves.size(); i++) {
+        int32_t score = ctx.moves[i].score;
+        counter += std::exp(score * 0.001f);
+        if (counter >= r) {
+            return ctx.moves[i].move;
+        }
+    }
+    std::print("something went wrong!");
+    return ctx.moves[0].move;
+}
+
 void think(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
     ctx.startTimer();
     ctx.resetSearch();
+    ctx.moves.clear();
+    auto result = iterative_deepening(ctx, game, depth);
+    ChessGame::Move best = choose_move(ctx);
+    IO::sendBestMove(best);
+}
+
+void think2(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
+    ctx.startTimer();
+    ctx.resetSearch();
+    ctx.moves.clear();
     auto startDepth = ctx.timeStart;
     Search::SearchResult result;
     Search::SearchResult lastResult;
@@ -166,10 +246,8 @@ void think(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
         }
 
         auto end = std::chrono::steady_clock::now();
-        auto elapsed =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end - startDepth).count();
-        IO::sendSearchInfo(result, i, elapsed, result.nodes * 1000.0f / elapsed,
-                           ctx.table->hashFull());
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - startDepth).count();
+        IO::sendSearchInfo(result, i, elapsed, result.nodes * 1000.0f / elapsed, ctx.table->hashFull());
         startDepth = end;
         lastResult = result;
         if (result.score > Search::mate || result.score < -Search::mate) {
@@ -181,9 +259,9 @@ void think(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
 
 uint64_t calculateSafetyMargin(uint64_t time) {
     if (time <= 50) {
-        return 5;
+        return 7;
     } else if (time <= 100) {
-        return 8;
+        return 10;
     } else if (time <= 1000) {
         return 15;
     } else {
@@ -192,6 +270,7 @@ uint64_t calculateSafetyMargin(uint64_t time) {
 }
 
 int main() {
+    srand(time(NULL));
     std::string inp;
     ChessGame::initConstants();
     ChessGame::Game game{};
@@ -225,6 +304,7 @@ int main() {
             game.loadStartingPos();
             ctx.reset();
             ctx.table = &table;
+            ctx.table->clear();
 
         } else if (cmd == "position") {
             std::getline(ss, arg, ' ');

@@ -190,27 +190,24 @@ void checkOccupancy(Game &game) {
     assert(game.occupancy[1] == occupancy[1]);
 }
 
-bool Game::isValidMove(Move move) {
+bool Game::is_valid_move(Move move) {
     bool res = true;
     playMove(move);
-    if (isCheck(color)) {
+    if (is_check(color)) {
         res = false;
     }
     undoMove(move);
     return res;
 }
 
-void Game::validMoves(MoveList &moves) {
-    pseudoLegalMoves(moves);
+void Game::legal_moves(MoveList &moves) {
+    pseudo_legal_moves(moves);
     for (int32_t i = 0; i < (int32_t)moves.size(); i++) {
-        if (isValidMove(moves[i].move)) {
+        if (is_valid_move(moves[i].move)) {
             continue;
         }
-        if (i < (int32_t)moves.size() - 1) {
-            moves[i] = moves[moves.size() - 1];
-        }
+        moves.remove_unordered(i);
         i--;
-        moves.pop_back();
     }
 }
 
@@ -309,7 +306,7 @@ void Game::validBitMaskMoves(Position pos, MoveList &moves, std::array<BitBoard,
     }
 }
 
-void Game::pseudoLegalMoves(MoveList &moves) {
+void Game::pseudo_legal_moves(MoveList &moves) {
     BitBoard pawns = bitboard[color][(uint8_t)Piece::PAWN];
     for (Position pos : BitRange{pawns}) {
         validPawnMoves(pos, moves);
@@ -357,7 +354,7 @@ void Game::pseudoLegalMoves(MoveList &moves) {
     }
 }
 
-Position Game::getLVA(BitBoard attackers, uint8_t color) {
+Position Game::get_lva(BitBoard attackers, uint8_t color) {
     BitBoard bb;
     for (int8_t piece = (int8_t)Piece::PAWN; piece >= (int8_t)Piece::KING; piece--) {
         bb = attackers & bitboard[color][piece];
@@ -413,7 +410,7 @@ bool Game::isSqaureAttacked(Position pos, uint8_t enemy) {
     return false;
 }
 
-bool Game::isCheck(uint8_t color) {
+bool Game::is_check(uint8_t color) {
     BitBoard board = bitboard[!color][(uint8_t)Piece::KING];
     Position pos = bitboard_to_position(board);
     if (isSqaureAttacked(pos, color)) {
@@ -454,46 +451,46 @@ void Game::playMove(Move move) {
     hash ^= zobristEP[ep];
 
     Position to = move.to;
+    Piece pieceTo;
+    uint8_t side;
+    Position rFrom;
+    Position rTo;
+
     switch (move.flags) {
-    case MoveType::MOVE_EP: {
+    case MoveType::MOVE_EP:
         to = BACKWARD(move.to, signedColor[color]);
         /* falltrough */
-    }
-    case MoveType::MOVE_CAPTURE: {
+    case MoveType::MOVE_CAPTURE:
         undo.capture = board[to];
-
-        Piece pieceTo = piece_from_piece(undo.capture);
+        pieceTo = piece_from_piece(undo.capture);
         unset_bit(occupancy[!color], to);
         unset_bit(bitboard[!color][(uint8_t)pieceTo], to);
         board[to] = (uint8_t)Piece::NONE;
         hash ^= zobristPieces[!color][(uint8_t)pieceTo][to];
         break;
-    }
-    case MoveType::MOVE_CASTLE: {
-        uint8_t side = move.to > move.from;
-        Position rFrom = castlingRookMovesFrom[color][side];
-        Position rTo = castlingRookMovesTo[color][side];
+    case MoveType::MOVE_CASTLE:
+        side = move.to > move.from;
+        rFrom = castlingRookMovesFrom[color][side];
+        rTo = castlingRookMovesTo[color][side];
 
         movePiece(rFrom, rTo);
         unset_bit(occupancy[color], rFrom);
         set_bit(occupancy[color], rTo);
 
         break;
-    }
-    case MoveType::MOVE_DOUBLE_PAWN: {
+    case MoveType::MOVE_DOUBLE_PAWN:
         hash ^= zobristEP[ep];
         ep = file_from_pos(move.from);
         hash ^= zobristEP[ep];
         break;
-    }
     case MoveType::NONE:
         break;
     }
 
-    uint8_t pieceTo = board[move.from];
-    Piece pieceFrom = piece_from_piece(pieceTo);
+    uint8_t cpieceTo = board[move.from];
+    Piece pieceFrom = piece_from_piece(cpieceTo);
     if (move.promote != Piece::NONE) {
-        pieceTo = to_piece(move.promote, color);
+        cpieceTo = to_piece(move.promote, color);
     }
 
     hash ^= zobristCastle[castling];
@@ -503,7 +500,7 @@ void Game::playMove(Move move) {
 
     unset_bit(occupancy[color], move.from);
     set_bit(occupancy[color], move.to);
-    movePiece(move.from, move.to, pieceFrom, pieceTo);
+    movePiece(move.from, move.to, pieceFrom, cpieceTo);
     occupancyBoth = occupancy[WHITE] | occupancy[BLACK];
 
     color ^= 1;
@@ -558,10 +555,10 @@ uint32_t Game::perft(uint32_t n) {
 
     uint32_t counter = 0;
     MoveList moves;
-    pseudoLegalMoves(moves);
+    pseudo_legal_moves(moves);
     for (auto move : moves) {
         playMove(move.move);
-        if (isCheck(color)) {
+        if (is_check(color)) {
             undoMove(move.move);
             continue;
         }
@@ -582,11 +579,12 @@ void Game::playMove(std::string &move) {
     if (board[to] != (uint8_t)Piece::NONE) {
         flags = MoveType::MOVE_CAPTURE;
     }
-    if (piece_from_piece(board[from]) == Piece::KING) {
+    Piece pieceFrom = piece_from_piece(board[from]);
+    if (pieceFrom == Piece::KING) {
         if (std::abs((int8_t)file_from_pos(from) - file_from_pos(to)) > 1) {
             flags = MoveType::MOVE_CASTLE;
         }
-    } else if (board[from] == (uint8_t)Piece::PAWN) {
+    } else if (pieceFrom == Piece::PAWN) {
         int8_t rnkFrom = rank_from_pos(from);
         int8_t rnkTo = rank_from_pos(to);
         int8_t fileFrom = file_from_pos(from);
@@ -604,7 +602,6 @@ void Game::playMove(std::string &move) {
         .flags = flags,
         .promote = promote,
     };
-    std::print("{}\n", m.toString());
     playMove(m);
 }
 
@@ -971,10 +968,10 @@ void initConstants() {
 void perftInfo(Game &game, uint32_t n) {
     MoveList moves;
     uint32_t count = 0;
-    game.pseudoLegalMoves(moves);
+    game.pseudo_legal_moves(moves);
     for (auto move : moves) {
         game.playMove(move.move);
-        if (game.isCheck(game.color)) {
+        if (game.is_check(game.color)) {
             game.undoMove(move.move);
             continue;
         }

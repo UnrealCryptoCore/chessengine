@@ -60,6 +60,7 @@ struct SearchContext {
     uint64_t thinkingTime = 0;
     uint64_t nodes = 0;
     std::chrono::steady_clock::time_point timeStart;
+    ChessGame::MoveList moves;
 
     TranspositionTable *table = nullptr;
 
@@ -68,6 +69,11 @@ struct SearchContext {
     void startTimer();
     bool timeUp() const;
 };
+bool is_mate(Score score);
+
+void score_moves(ChessGame::Game &game, ChessGame::MoveList &moves);
+
+void sort_moves(ChessGame::MoveList &moves);
 
 Score simpleMinimax(ChessGame::Game &game, int32_t depth);
 
@@ -78,5 +84,9 @@ Score alphaBetaMO(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t de
 Score alphaBetaMOTT(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
 
 Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score beta);
+
+Score test_search_root(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
+
+Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth);
 
 } // namespace Search
