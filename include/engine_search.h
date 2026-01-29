@@ -1,21 +1,20 @@
 #pragma once
 
 #include "game.h"
+#include <array>
 #include <chrono>
 #include <cstdint>
 #include <vector>
 
 namespace Search {
 
-typedef int16_t Score;
+using Score = int16_t;
 
-inline uint32_t nodeCount = 0;
-inline uint32_t TTHits = 0;
-inline uint32_t usableTThits = 0;
-
+constexpr uint8_t max_depth = 64;
 constexpr Score mate = 30000;
-constexpr Score maxValue = 32000;
-constexpr Score lossValue = -mate;
+constexpr Score mate_threshold = 29000;
+constexpr Score max_value = 32000;
+constexpr Score loss_value = -mate;
 
 enum class NodeType : uint8_t {
     NONE = 0,
@@ -37,6 +36,8 @@ struct SearchResult {
     ChessGame::Move bestMove;
     uint64_t nodes;
     std::vector<ChessGame::Move> pv;
+    uint32_t depth;
+    int64_t elapsed;
 };
 
 struct TranspositionTable {
@@ -60,9 +61,10 @@ struct SearchContext {
     uint64_t thinkingTime = 0;
     uint64_t nodes = 0;
     std::chrono::steady_clock::time_point timeStart;
-    ChessGame::MoveList moves;
-
+    uint32_t ply;
     TranspositionTable *table = nullptr;
+    std::array<std::array<ChessGame::Move, 2>, max_depth> killers;
+    ChessGame::MoveList moves;
 
     void reset();
     void resetSearch();
@@ -79,9 +81,9 @@ Score simpleMinimax(ChessGame::Game &game, int32_t depth);
 
 Score simpleAlphaBeta(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
 
-Score alphaBetaMO(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
+Score search(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
 
-Score alphaBetaMOTT(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
+Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
 
 Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score beta);
 

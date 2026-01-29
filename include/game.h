@@ -178,6 +178,9 @@ struct Move {
     std::string toSimpleNotation() const;
     std::string toString() const;
 
+    inline bool is_capture() {
+        return uint8_t(flags) & (uint8_t(ChessGame::MoveType::MOVE_CAPTURE) | uint8_t(ChessGame::MoveType::MOVE_EP));
+    }
     inline bool operator==(const Move &other) const {
         return *reinterpret_cast<const uint32_t *>(this) == *reinterpret_cast<const uint32_t *>(&other);
     }
@@ -186,11 +189,12 @@ struct Move {
 struct ScoreMove {
     Move move;
     int16_t score;
+    bool exact;
 };
 
 template <typename T, std::size_t N> struct StackList {
-    std::array<T, N> stack;
     uint16_t count = 0;
+    std::array<T, N> stack;
 
     void push_back(T m) { stack[count++] = m; }
     T &push_back_empty() { return stack[count++]; }
@@ -240,8 +244,8 @@ struct Game {
     uint8_t fullmoves = 0;
     std::array<BitBoard, 2> occupancy{0, 0};
     BitBoard occupancyBoth;
-    StackList<UndoMove, 1024> undoStack;
     uint64_t hash = 0;
+    StackList<UndoMove, 1024> undoStack;
 
     void reset();
     void calculateOccupancy();
@@ -259,6 +263,7 @@ struct Game {
     bool is_check(uint8_t color);
     void legal_moves(MoveList &moves);
     void pseudo_legal_moves(MoveList &moves);
+    bool is_pseudo_legal(Move move);
     void movePiece(Position from, Position to, Piece pieceFrom, uint8_t pieceTo);
     void movePiece(Position from, Position to);
     void playMove(std::string &move);

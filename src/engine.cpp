@@ -122,8 +122,8 @@ struct IO {
 
     static void sendBestMove(ChessGame::Move move) { send(std::format("bestmove {}", move.toSimpleNotation())); }
 
-    static void sendSearchInfo(Search::SearchResult &result, uint32_t depth, int64_t time, uint32_t nps,
-                               uint32_t hashfull) {
+    static void sendSearchInfo(Search::SearchResult &result, uint32_t hashfull) {
+        uint32_t nps = result.nodes * 1000.0f / result.elapsed;
         std::string pvs = "";
         for (auto [i, move] : std::views::enumerate(result.pv)) {
             if (i > 0) {
@@ -137,24 +137,12 @@ struct IO {
         } else {
             score = std::format("cp {}", result.score);
         }
-        send(std::format("info depth {} score {} time {} nodes {} nps {} pv {} hashfull {}", depth, score, time,
-                         result.nodes, nps, pvs, hashfull));
+        send(std::format("info depth {} score {} time {} nodes {} nps {} pv {} hashfull {}", result.depth, score,
+                         result.elapsed, result.nodes, nps, pvs, hashfull));
     }
 
     static bool recv(std::string &s) { return static_cast<bool>(std::getline(std::cin, s)); }
 };
-
-Search::SearchResult search(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
-    Search::Score score = Search::alphaBetaMOTT(ctx, game, Search::lossValue, Search::mate, depth);
-    ChessGame::Move move = ctx.table->get(game.hash).best;
-    std::vector<ChessGame::Move> pv = {move};
-    return {
-        .score = score,
-        .bestMove = move,
-        .nodes = ctx.nodes,
-        .pv = pv,
-    };
-}
 
 Search::SearchResult iterative_deepening(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
     Search::SearchResult lastResult;
@@ -179,8 +167,10 @@ Search::SearchResult iterative_deepening(Search::SearchContext &ctx, ChessGame::
             .bestMove = bestMove.move,
             .nodes = ctx.nodes,
             .pv = {bestMove.move},
+            .depth = i,
+            .elapsed = elapsed,
         };
-        IO::sendSearchInfo(result, i, elapsed, ctx.nodes * 1000.0f / elapsed, ctx.table->hashFull());
+        IO::sendSearchInfo(result, ctx.table->hashFull());
 
         startDepth = end;
         lastResult = result;
@@ -191,6 +181,8 @@ Search::SearchResult iterative_deepening(Search::SearchContext &ctx, ChessGame::
     }
     return lastResult;
 }
+
+ChessGame::Move simple_choose_move(ChessGame::MoveList &moves) { return moves[std::rand() % moves.size()].move; }
 
 ChessGame::Move choose_move(Search::SearchContext &ctx) {
     constexpr Search::Score window = 20;
@@ -223,38 +215,30 @@ ChessGame::Move choose_move(Search::SearchContext &ctx) {
     return ctx.moves[0].move;
 }
 
+void filter_move_canditates(ChessGame::MoveList &moves, Search::Score window) {
+    for (uint16_t i = 1; i < moves.size(); i++) {
+        if (!moves[i].exact) {
+            moves.remove_unordered(i);
+            i--;
+            continue;
+        }
+        if (moves[i].score < moves[0].score - window) {
+            moves.remove_unordered(i);
+            i--;
+            continue;
+        }
+    }
+}
+
 void think(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
     ctx.startTimer();
     ctx.resetSearch();
     ctx.moves.clear();
-    auto result = iterative_deepening(ctx, game, depth);
-    ChessGame::Move best = choose_move(ctx);
+
+    iterative_deepening(ctx, game, depth);
+    filter_move_canditates(ctx.moves, 20);
+    ChessGame::Move best = simple_choose_move(ctx.moves);
     IO::sendBestMove(best);
-}
-
-void think2(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
-    ctx.startTimer();
-    ctx.resetSearch();
-    ctx.moves.clear();
-    auto startDepth = ctx.timeStart;
-    Search::SearchResult result;
-    Search::SearchResult lastResult;
-    for (uint32_t i = 1; i <= depth; i++) {
-        result = search(ctx, game, i);
-        if (ctx.stop) {
-            break;
-        }
-
-        auto end = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - startDepth).count();
-        IO::sendSearchInfo(result, i, elapsed, result.nodes * 1000.0f / elapsed, ctx.table->hashFull());
-        startDepth = end;
-        lastResult = result;
-        if (result.score > Search::mate || result.score < -Search::mate) {
-            break;
-        }
-    }
-    IO::sendBestMove(lastResult.bestMove);
 }
 
 uint64_t calculateSafetyMargin(uint64_t time) {

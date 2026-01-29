@@ -1,15 +1,16 @@
 #include "engine_search.h"
 #include "evaluation.h"
 #include "game.h"
+#include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
-#include <print>
 
 namespace Search {
 
-bool is_mate(Score score) { return score > mate || score < -mate; }
+bool is_mate(Score score) { return score > mate_threshold || score < -mate_threshold; }
 
 Score see(ChessGame::Game &game, ChessGame::Position pos, uint8_t color) {
     Score gain[64];
@@ -60,8 +61,9 @@ void SearchContext::reset() {
 void SearchContext::resetSearch() {
     stop = false;
     nodes = 0;
+    ply = 0;
     if (table != nullptr) {
-        //table->clear();
+        // table->clear();
     }
 }
 
@@ -77,7 +79,6 @@ bool SearchContext::timeUp() const {
 }
 
 Score simpleMinimax(ChessGame::Game &game, int32_t depth) {
-    nodeCount++;
     if (depth == 0) {
         return ChessGame::signedColor[game.color] * ChessGame::Evaluation::evaluate(game);
     }
@@ -85,7 +86,7 @@ Score simpleMinimax(ChessGame::Game &game, int32_t depth) {
     ChessGame::MoveList moves;
     game.pseudo_legal_moves(moves);
     bool legalMove = false;
-    int32_t value = lossValue;
+    int32_t value = loss_value;
     for (auto move : moves) {
         game.playMove(move.move);
         if (game.is_check(game.color)) {
@@ -102,7 +103,7 @@ Score simpleMinimax(ChessGame::Game &game, int32_t depth) {
 
     if (!legalMove) {
         if (game.is_check(!game.color)) {
-            return lossValue;
+            return loss_value;
         } else {
             return 0;
         }
@@ -111,11 +112,10 @@ Score simpleMinimax(ChessGame::Game &game, int32_t depth) {
 }
 
 Score simpleAlphaBeta(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth) {
-    nodeCount++;
     if (depth == 0) {
         return ChessGame::signedColor[game.color] * ChessGame::Evaluation::evaluate(game);
     }
-    int32_t bestValue = lossValue;
+    int32_t bestValue = loss_value;
 
     ChessGame::MoveList moves;
     game.pseudo_legal_moves(moves);
@@ -143,7 +143,7 @@ Score simpleAlphaBeta(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_
 
     if (!legalMove) {
         if (game.is_check(!game.color)) {
-            return lossValue;
+            return loss_value;
         } else {
             return 0;
         }
@@ -184,7 +184,7 @@ void sort_moves(ChessGame::MoveList &moves) {
 
 uint32_t find_best(ChessGame::Game &game, ChessGame::MoveList &moves) {
     uint32_t best = 0;
-    int32_t bestScore = lossValue;
+    int32_t bestScore = loss_value;
     for (uint32_t i = 0; i < moves.size(); i++) {
         int32_t score = score_move(game, moves[i].move);
         if (score > bestScore) {
@@ -196,11 +196,10 @@ uint32_t find_best(ChessGame::Game &game, ChessGame::MoveList &moves) {
 }
 
 Score alphaBetaMO(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth) {
-    nodeCount++;
     if (depth == 0) {
         return ChessGame::signedColor[game.color] * ChessGame::Evaluation::evaluate(game);
     }
-    int32_t bestValue = lossValue;
+    int32_t bestValue = loss_value;
 
     ChessGame::MoveList moves;
     game.pseudo_legal_moves(moves);
@@ -232,7 +231,7 @@ Score alphaBetaMO(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t de
 
     if (!legalMove) {
         if (game.is_check(!game.color)) {
-            return lossValue - depth;
+            return loss_value - depth;
         } else {
             return 0;
         }
@@ -290,7 +289,25 @@ inline void set_move_score(ChessGame::MoveList &moves, ChessGame::Move move, Sco
     }
 }
 
-Score alphaBetaMOTT(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth) {
+void update_TT(SearchContext &ctx, ChessGame::Game &game, uint32_t entryIdx, uint32_t depth, ChessGame::Move bestMove,
+               Score bestScore, Score alpha, Score beta) {
+    TableEntry &entry = ctx.table->table[entryIdx];
+    if (depth >= entry.depth && !ctx.stop) {
+        entry.score = bestScore;
+        entry.best = bestMove;
+        entry.depth = depth;
+        entry.hash = game.hash;
+        if (bestScore <= alpha) {
+            entry.type = NodeType::UPPER_BOUND;
+        } else if (bestScore >= beta) {
+            entry.type = NodeType::LOWER_BOUND;
+        } else {
+            entry.type = NodeType::EXACT;
+        }
+    }
+}
+
+Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth) {
     ctx.nodes++;
 
     if (ctx.stop) {
@@ -306,27 +323,33 @@ Score alphaBetaMOTT(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, in
     }
 
     uint64_t entryIdx = game.hash & (ctx.table->size() - 1);
-    ChessGame::Move bestMove;
+    ChessGame::Move bestMove{};
     ChessGame::MoveList moves;
 
     game.pseudo_legal_moves(moves);
     score_moves(game, moves);
 
     TableEntry &entry = ctx.table->table[entryIdx];
+    uint16_t entryDepth = entry.depth;
     if (entry.type != NodeType::NONE && entry.hash == game.hash) {
         if (entry.depth >= depth) {
             if (entry.type == NodeType::EXACT) {
                 return entry.score;
             } else if (entry.type == NodeType::LOWER_BOUND && entry.score >= beta) {
-                return beta;
+                return entry.score;
             } else if (entry.type == NodeType::UPPER_BOUND && entry.score <= alpha) {
-                return alpha;
+                return entry.score;
             }
         }
         set_move_score(moves, entry.best, mate);
     }
 
-    int32_t bestScore = -maxValue;
+    ctx.ply++;
+    for (uint8_t i = 0; i < 2; i++) {
+        set_move_score(moves, ctx.killers[ctx.ply][i], 500 - i);
+    }
+
+    int32_t bestScore = -max_value;
     int32_t origAlpha = alpha;
 
     bool legalMove = false;
@@ -339,76 +362,92 @@ Score alphaBetaMOTT(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, in
             game.undoMove(move);
             continue;
         }
+
+        Score score;
+        score = -search(ctx, game, -beta, -alpha, depth - 1);
         legalMove = true;
-        Score score = -alphaBetaMOTT(ctx, game, -beta, -alpha, depth - 1);
+        /*if (!legalMove) {
+            score = -search(ctx, game, -beta, -alpha, depth - 1);
+            legalMove = true;
+        } else {
+            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1);
+            if (score > alpha && score < beta) {
+                score = -search(ctx, game, -beta, -alpha, depth - 1);
+            }
+        }*/
+
         game.undoMove(move);
         if (score > bestScore) {
             bestScore = score;
             bestMove = move;
-            if (score > alpha) {
-                alpha = score;
-            }
         }
+        if (score > alpha) {
+            alpha = score;
+        }
+
         if (score >= beta) {
+            if (!move.is_capture()) {
+                if (move != ctx.killers[ctx.ply][0]) {
+                    ctx.killers[ctx.ply][1] = ctx.killers[ctx.ply][0];
+                    ctx.killers[ctx.ply][0] = move;
+                }
+            }
             break;
         }
     }
 
+    ctx.ply--;
+
     if (!legalMove) {
         if (game.is_check(!game.color)) {
-            bestScore = -mate - depth;
-            return bestScore;
+            bestScore = -mate + ctx.ply;
         } else {
             bestScore = 0;
-            return bestScore;
         }
+        return bestScore;
     }
 
-    if (depth >= entry.depth && !ctx.stop) {
-        entry.score = bestScore;
-        entry.best = bestMove;
-        entry.depth = depth;
-        entry.hash = game.hash;
-        if (bestScore <= origAlpha) {
-            entry.type = NodeType::UPPER_BOUND;
-        } else if (entry.score >= beta) {
-            entry.type = NodeType::LOWER_BOUND;
-        } else {
-            entry.type = NodeType::EXACT;
-        }
-    }
-
+    update_TT(ctx, game, entryIdx, depth, bestMove, bestScore, origAlpha, beta);
     return bestScore;
 }
 
 Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
+    ctx.ply = 1;
     ctx.nodes++;
     Score alpha = -mate;
+    Score beta = mate;
     uint64_t entryIdx = game.hash & (ctx.table->size() - 1);
     ChessGame::Move bestMove;
 
     TableEntry &entry = ctx.table->table[entryIdx];
     if (entry.type != NodeType::NONE && entry.hash == game.hash) {
-        /*if (entry.depth >= depth) {
-            if (entry.type == NodeType::EXACT) {
-                return entry.score;
-            } else if (entry.type == NodeType::LOWER_BOUND && entry.score >= beta) {
-                return beta;
-            } else if (entry.type == NodeType::UPPER_BOUND && entry.score <= alpha) {
-                return alpha;
-            }
-        }*/
         push_move_to_front(ctx.moves, entry.best);
     }
 
-    int32_t bestScore = -maxValue;
+    int32_t bestScore = -max_value;
     int32_t origAlpha = alpha;
 
     bool first = true;
     for (auto &move : ctx.moves) {
         game.playMove(move.move);
 
-        Score score = -alphaBetaMOTT(ctx, game, -mate, mate, depth - 1);
+        Score score;
+        score = -search(ctx, game, -mate, mate, depth - 1);
+        move.exact = true;
+        /*if (first) {
+            score = -search(ctx, game, -mate, mate, depth - 1);
+            first = false;
+            move.exact = true;
+        } else {
+            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1);
+            if (score > alpha && score < beta) {
+                score = -search(ctx, game, -mate, mate, depth - 1);
+                move.exact = true;
+            } else {
+                move.exact = false;
+            }
+        }*/
+
         game.undoMove(move.move);
 
         if (ctx.stop) {
@@ -461,7 +500,7 @@ Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score b
 
     while (moves.size() > 0) {
         ChessGame::ScoreMove move = find_next_rm(game, moves);
-        if (move.move.flags != ChessGame::MoveType::MOVE_CAPTURE) {
+        if (!move.move.is_capture()) {
             continue;
         }
         game.playMove(move.move);

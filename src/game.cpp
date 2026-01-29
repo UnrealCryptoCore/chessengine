@@ -306,6 +306,14 @@ void Game::validBitMaskMoves(Position pos, MoveList &moves, std::array<BitBoard,
     }
 }
 
+bool Game::is_pseudo_legal(Move move) {
+    uint8_t p = board[move.from];
+    if (color_from_piece(p) != color) {
+        return false;
+    }
+    return true;
+}
+
 void Game::pseudo_legal_moves(MoveList &moves) {
     BitBoard pawns = bitboard[color][(uint8_t)Piece::PAWN];
     for (Position pos : BitRange{pawns}) {
