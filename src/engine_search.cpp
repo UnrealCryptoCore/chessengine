@@ -364,9 +364,9 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         }
 
         Score score;
-        score = -search(ctx, game, -beta, -alpha, depth - 1);
-        legalMove = true;
-        /*if (!legalMove) {
+        //score = -search(ctx, game, -beta, -alpha, depth - 1);
+        //legalMove = true;
+        if (!legalMove) {
             score = -search(ctx, game, -beta, -alpha, depth - 1);
             legalMove = true;
         } else {
@@ -374,7 +374,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
             if (score > alpha && score < beta) {
                 score = -search(ctx, game, -beta, -alpha, depth - 1);
             }
-        }*/
+        }
 
         game.undoMove(move);
         if (score > bestScore) {
