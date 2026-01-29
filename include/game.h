@@ -166,6 +166,7 @@ struct UndoMove {
     uint8_t capture;
     uint8_t castling;
     uint8_t ep;
+    uint8_t halfmove;
 };
 
 struct Move {

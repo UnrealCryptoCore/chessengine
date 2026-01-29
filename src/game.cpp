@@ -452,6 +452,7 @@ void Game::playMove(Move move) {
         .capture = (uint8_t)Piece::NONE,
         .castling = castling,
         .ep = ep,
+        .halfmove = halfmove,
     };
 
     hash ^= zobristEP[ep];
@@ -511,6 +512,12 @@ void Game::playMove(Move move) {
     movePiece(move.from, move.to, pieceFrom, cpieceTo);
     occupancyBoth = occupancy[WHITE] | occupancy[BLACK];
 
+    if (pieceFrom == Piece::PAWN || move.flags == MoveType::MOVE_CAPTURE) {
+        halfmove = 0;
+    } else {
+        halfmove++;
+    }
+
     color ^= 1;
     hash ^= zobristSide;
 }
@@ -552,6 +559,7 @@ void Game::undoMove(Move move) {
     occupancy[BLACK] = undo.occupancy[BLACK];
     occupancyBoth = undo.occupancy[2];
     hash = undo.hash;
+    halfmove = undo.halfmove;
 
     undoStack.pop_back();
 }
@@ -713,6 +721,10 @@ void Game::loadFen(std::stringstream &ss) {
         uint8_t rank = fenEnPassant.at(1) - '1';
         ep = file;
     }
+    
+    halfmove = std::stoi(fenHalfMoves);
+    fullmoves = std::stoi(fenFullMoves);
+
     hash = calculateHash();
 }
 

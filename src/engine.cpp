@@ -32,10 +32,10 @@ enum class OptionType {
 struct Option {
     std::string name;
     OptionType type;
-    std::string defaultStr = "";
     std::string min = "";
     std::string max = "";
     std::string var = "";
+    std::string defaultStr = "";
 };
 
 constexpr const char *toString(OptionType type) {
@@ -52,6 +52,22 @@ constexpr const char *toString(OptionType type) {
         return "string";
     }
 }
+
+struct UciGame {
+    ChessGame::Game game{};
+    Search::SearchContext ctx{};
+    uint64_t wtime = 0;
+    uint64_t btime = 0;
+    uint8_t kBest = 1;
+
+    void new_uci_game(Search::TranspositionTable *table) {
+        game.reset();
+        game.loadStartingPos();
+        ctx.reset();
+        ctx.table = table;
+        ctx.table->clear();
+    }
+};
 
 struct Logger {
     std::string filename;
@@ -115,6 +131,14 @@ struct IO {
             .type = OptionType::SPIN,
             .min = "1",
             .max = "128",
+            .defaultStr = "16",
+        });
+        sendOption(Option{
+            .name = "MultiPV",
+            .type = OptionType::SPIN,
+            .min = "1",
+            .max = "",
+            .defaultStr = "1"
         });
     }
 
@@ -144,33 +168,33 @@ struct IO {
     static bool recv(std::string &s) { return static_cast<bool>(std::getline(std::cin, s)); }
 };
 
-Search::SearchResult iterative_deepening(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
+Search::SearchResult iterative_deepening(UciGame &game, uint32_t depth) {
     Search::SearchResult lastResult;
-    auto startDepth = ctx.timeStart;
+    auto startDepth = game.ctx.timeStart;
 
-    game.legal_moves(ctx.moves);
+    game.game.legal_moves(game.ctx.moves);
 
     for (uint32_t i = 1; i <= depth; i++) {
-        Search::search_root(ctx, game, i);
-        Search::sort_moves(ctx.moves);
+        Search::search_root(game.ctx, game.game, i, game.kBest);
+        Search::sort_moves(game.ctx.moves);
 
-        if (ctx.stop) {
+        if (game.ctx.stop) {
             break;
         }
 
-        ChessGame::ScoreMove bestMove = ctx.moves[0];
+        ChessGame::ScoreMove bestMove = game.ctx.moves[0];
 
         auto end = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - startDepth).count();
         Search::SearchResult result{
             .score = bestMove.score,
             .bestMove = bestMove.move,
-            .nodes = ctx.nodes,
+            .nodes = game.ctx.nodes,
             .pv = {bestMove.move},
             .depth = i,
             .elapsed = elapsed,
         };
-        IO::sendSearchInfo(result, ctx.table->hashFull());
+        IO::sendSearchInfo(result, game.ctx.table->hashFull());
 
         startDepth = end;
         lastResult = result;
@@ -230,14 +254,14 @@ void filter_move_canditates(ChessGame::MoveList &moves, Search::Score window) {
     }
 }
 
-void think(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
-    ctx.startTimer();
-    ctx.resetSearch();
-    ctx.moves.clear();
+void think(UciGame &game, uint32_t depth) {
+    game.ctx.startTimer();
+    game.ctx.resetSearch();
+    game.ctx.moves.clear();
 
-    iterative_deepening(ctx, game, depth);
-    filter_move_canditates(ctx.moves, 20);
-    ChessGame::Move best = simple_choose_move(ctx.moves);
+    iterative_deepening(game, depth);
+    filter_move_canditates(game.ctx.moves, 20);
+    ChessGame::Move best = simple_choose_move(game.ctx.moves);
     IO::sendBestMove(best);
 }
 
@@ -257,13 +281,14 @@ int main() {
     srand(time(NULL));
     std::string inp;
     ChessGame::initConstants();
-    ChessGame::Game game{};
-    game.loadStartingPos();
+
     Search::TranspositionTable table;
     table.setsize(16);
-    Search::SearchContext ctx;
-    ctx.reset();
-    ctx.table = &table;
+
+    UciGame game{};
+    game.game.loadStartingPos();
+    game.ctx.reset();
+    game.ctx.table = &table;
 
     while (1) {
         if (!IO::recv(inp)) {
@@ -284,23 +309,18 @@ int main() {
         } else if (cmd == "isready") {
             IO::sendReadyOk();
         } else if (cmd == "ucinewgame") {
-            game.reset();
-            game.loadStartingPos();
-            ctx.reset();
-            ctx.table = &table;
-            ctx.table->clear();
-
+            game.new_uci_game(&table);
         } else if (cmd == "position") {
             std::getline(ss, arg, ' ');
             if (arg == "fen") {
-                game.loadFen(ss);
+                game.game.loadFen(ss);
             } else if (arg == "startpos") {
-                game.loadStartingPos();
+                game.game.loadStartingPos();
             }
             std::getline(ss, arg, ' ');
             if (arg == "moves") {
                 while (std::getline(ss, arg, ' ')) {
-                    game.playMove(arg);
+                    game.game.playMove(arg);
                 }
             }
 
@@ -309,25 +329,34 @@ int main() {
             if (cmd == "perft") {
                 std::getline(ss, arg, ' ');
                 uint32_t n = std::stoi(arg);
-                ChessGame::perftInfo(game, n);
+                ChessGame::perftInfo(game.game, n);
             } else if (cmd == "depth") {
-                ctx.thinkingTime = 0;
+                game.ctx.thinkingTime = 0;
                 std::getline(ss, arg, ' ');
                 uint32_t n = std::stoi(arg);
-                think(ctx, game, n);
+                think(game, n);
             } else if (cmd == "movetime") {
                 std::getline(ss, arg, ' ');
                 uint32_t n = std::stoi(arg);
-                ctx.thinkingTime = n - calculateSafetyMargin(n);
-                think(ctx, game, 1024);
+                game.ctx.thinkingTime = n - calculateSafetyMargin(n);
+                think(game, 1024);
             } else {
                 logger.log(std::format("What is {}?", cmd));
             }
 
         } else if (cmd == "setoption") {
-
+            std::getline(ss, cmd, ' ');
+            if (cmd == "Hash") {
+                std::getline(ss, arg, ' ');
+                uint32_t n = std::stoi(arg);
+                table.setsize(n);
+            } else if (cmd == "MultiPV") {
+                std::getline(ss, arg, ' ');
+                uint32_t n = std::stoi(arg);
+                game.kBest = n;
+            }
         } else if (cmd == "stop") {
-            ctx.stop = true;
+            game.ctx.stop = true;
         } else if (cmd == "quit") {
             break;
         } else if (cmd == "debug") {
@@ -337,9 +366,9 @@ int main() {
         } else if (cmd == "show") {
             std::getline(ss, arg, ' ');
             if (arg == "all") {
-                game.showAll();
+                game.game.showAll();
             } else {
-                game.showBoard();
+                game.game.showBoard();
             }
         } else {
             logger.log(std::format("What is {}?", cmd));

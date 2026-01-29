@@ -289,8 +289,8 @@ inline void set_move_score(ChessGame::MoveList &moves, ChessGame::Move move, Sco
     }
 }
 
-void update_TT(SearchContext &ctx, ChessGame::Game &game, uint32_t entryIdx, uint32_t depth, ChessGame::Move bestMove,
-               Score bestScore, Score alpha, Score beta) {
+void inline update_TT(SearchContext &ctx, ChessGame::Game &game, uint32_t entryIdx, uint32_t depth,
+                      ChessGame::Move bestMove, Score bestScore, Score alpha, Score beta) {
     TableEntry &entry = ctx.table->table[entryIdx];
     if (depth >= entry.depth && !ctx.stop) {
         entry.score = bestScore;
@@ -316,6 +316,10 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
 
     if ((ctx.nodes & 2047) == 0 && ctx.timeUp()) {
         ctx.stop = true;
+    }
+
+    if (game.halfmove >= 100) {
+        return 0;
     }
 
     if (depth == 0) {
@@ -364,8 +368,8 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         }
 
         Score score;
-        //score = -search(ctx, game, -beta, -alpha, depth - 1);
-        //legalMove = true;
+        // score = -search(ctx, game, -beta, -alpha, depth - 1);
+        // legalMove = true;
         if (!legalMove) {
             score = -search(ctx, game, -beta, -alpha, depth - 1);
             legalMove = true;
@@ -411,7 +415,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     return bestScore;
 }
 
-Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
+Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth, uint8_t kBest) {
     ctx.ply = 1;
     ctx.nodes++;
     Score alpha = -mate;
@@ -427,16 +431,13 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
     int32_t bestScore = -max_value;
     int32_t origAlpha = alpha;
 
-    bool first = true;
-    for (auto &move : ctx.moves) {
+    for (uint8_t i = 0; i < ctx.moves.size(); i++) {
+        ChessGame::ScoreMove &move = ctx.moves[i];
         game.playMove(move.move);
 
         Score score;
-        score = -search(ctx, game, -mate, mate, depth - 1);
-        move.exact = true;
-        /*if (first) {
+        if (i == 0) {
             score = -search(ctx, game, -mate, mate, depth - 1);
-            first = false;
             move.exact = true;
         } else {
             score = -search(ctx, game, -alpha - 1, -alpha, depth - 1);
@@ -446,7 +447,7 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
             } else {
                 move.exact = false;
             }
-        }*/
+        }
 
         game.undoMove(move.move);
 
@@ -471,6 +472,7 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
         entry.hash = game.hash;
         entry.type = NodeType::EXACT;
     }
+    //update_TT(ctx, game, entryIdx, depth, bestMove, bestScore, origAlpha, beta);
     return bestScore;
 }
 
