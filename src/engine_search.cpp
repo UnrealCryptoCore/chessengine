@@ -194,7 +194,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     ctx.nodes++;
 
     if (ctx.stop) {
-        return 0;
+        return -max_value;
     }
 
     if ((ctx.nodes & 2047) == 0 && ctx.timeUp()) {
@@ -345,6 +345,7 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
         game.undo_move(move.move);
 
         if (ctx.stop) {
+            move.exact = false;
             break;
         }
 
