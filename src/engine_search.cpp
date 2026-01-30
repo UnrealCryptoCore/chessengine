@@ -190,7 +190,7 @@ void inline update_TT(SearchContext &ctx, ChessGame::Game &game, uint32_t entryI
     }
 }
 
-Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth) {
+Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth, bool allowNullMove) {
     ctx.nodes++;
 
     if (ctx.stop) {
@@ -205,7 +205,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         return 0;
     }
 
-    if (depth == 0) {
+    if (depth <= 0) {
         return quiescence(ctx, game, alpha, beta);
     }
 
@@ -231,11 +231,11 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         set_move_score(moves, entry.best, mate);
     }
 
-    if (depth >= 3 && !game.is_check(game.color) && game.has_non_pawn_material(game.color)) {
+    if (allowNullMove && depth >= 3 && !game.is_check(game.color) && game.has_non_pawn_material(game.color)) {
         constexpr int R = 2;
 
         game.make_null_move();
-        Score score = -search(ctx, game, -beta, -beta + 1, depth - 1 - R);
+        Score score = -search(ctx, game, -beta, -beta + 1, depth - 1 - R, false);
         game.undo_null_move();
 
         if (score >= beta) {
@@ -264,12 +264,12 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
 
         Score score;
         if (!legalMove) {
-            score = -search(ctx, game, -beta, -alpha, depth - 1);
+            score = -search(ctx, game, -beta, -alpha, depth - 1, true);
             legalMove = true;
         } else {
-            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1);
+            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, true);
             if (score > alpha && score < beta) {
-                score = -search(ctx, game, -beta, -alpha, depth - 1);
+                score = -search(ctx, game, -beta, -alpha, depth - 1, true);
             }
         }
 
@@ -330,12 +330,12 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
 
         Score score;
         if (i == 0) {
-            score = -search(ctx, game, -mate, mate, depth - 1);
+            score = -search(ctx, game, -mate, mate, depth - 1, true);
             move.exact = true;
         } else {
-            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1);
+            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, true);
             if (score > alpha && score < beta) {
-                score = -search(ctx, game, -mate, mate, depth - 1);
+                score = -search(ctx, game, -mate, mate, depth - 1, true);
                 move.exact = true;
             } else {
                 move.exact = false;
