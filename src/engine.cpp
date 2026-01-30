@@ -194,8 +194,9 @@ void calculate_pv_moves(UciGame &game, std::vector<ChessGame::Move> moves) {
 }
 
 Search::SearchResult iterative_deepening(UciGame &game, uint32_t depth) {
+    game.ctx.resetSearch();
     Search::SearchResult lastResult;
-    auto startDepth = game.ctx.timeStart;
+    auto start = game.ctx.timeStart;
 
     game.game.legal_moves(game.ctx.moves);
 
@@ -211,7 +212,7 @@ Search::SearchResult iterative_deepening(UciGame &game, uint32_t depth) {
 
         auto end = std::chrono::steady_clock::now();
         auto elapsed =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end - startDepth).count();
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
         std::vector<ChessGame::Move> pvs{game.ctx.moves[0].move};
         // calculate_pv_moves(game, pvs);
         Search::SearchResult result{
@@ -224,12 +225,14 @@ Search::SearchResult iterative_deepening(UciGame &game, uint32_t depth) {
         };
         IO::sendSearchInfo(result, game.ctx.table->hashFull());
 
-        startDepth = end;
+        start = end;
         lastResult = result;
 
         if (Search::is_mate(result.score)) {
             break;
         }
+
+        game.ctx.history_decay();
     }
     return lastResult;
 }
@@ -289,8 +292,6 @@ void filter_move_canditates(ChessGame::MoveList &moves, Search::Score window, ui
 
 void think(UciGame &game) {
     game.ctx.startTimer();
-    game.ctx.resetSearch();
-    game.ctx.moves.clear();
 
     iterative_deepening(game, game.depth);
     filter_move_canditates(game.ctx.moves, 20, game.kBest);

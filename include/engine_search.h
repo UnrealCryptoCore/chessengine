@@ -16,6 +16,8 @@ constexpr Score mate_threshold = 29000;
 constexpr Score max_value = 32000;
 constexpr Score loss_value = -mate;
 
+constexpr int32_t max_history = 10000;
+
 enum class NodeType : uint8_t {
     NONE = 0,
     EXACT,
@@ -66,20 +68,23 @@ struct SearchContext {
     uint64_t thinkingTime = 0;
     uint64_t nodes = 0;
     std::chrono::steady_clock::time_point timeStart;
-    uint32_t ply;
+    uint32_t ply = 0;
     TranspositionTable *table = nullptr;
-    std::array<std::array<ChessGame::Move, 2>, max_depth> killers;
+    std::array<std::array<ChessGame::Move, 2>, max_depth> killers{};
+    std::array<std::array<std::array<int32_t, 64>, 64>, 2> history{};
     ChessGame::MoveList moves;
     //ChessGame::StackList<StackElement, max_depth> stack{};
 
     void reset();
     void resetSearch();
+    void history_decay();
     void startTimer();
     bool timeUp() const;
 };
+
 bool is_mate(Score score);
 
-void score_moves(ChessGame::Game &game, ChessGame::MoveList &moves);
+void score_moves(SearchContext &ctx, ChessGame::Game &game, ChessGame::MoveList &moves);
 
 void sort_moves(ChessGame::MoveList &moves);
 
