@@ -56,6 +56,11 @@ struct TranspositionTable {
     uint32_t hashFull() const;
 };
 
+struct StackElement {
+    uint16_t ply = 0;
+    bool allowNullMove = 0;
+};
+
 struct SearchContext {
     bool stop = false;
     uint64_t thinkingTime = 0;
@@ -65,6 +70,7 @@ struct SearchContext {
     TranspositionTable *table = nullptr;
     std::array<std::array<ChessGame::Move, 2>, max_depth> killers;
     ChessGame::MoveList moves;
+    //ChessGame::StackList<StackElement, max_depth> stack{};
 
     void reset();
     void resetSearch();

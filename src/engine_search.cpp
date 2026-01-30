@@ -62,9 +62,7 @@ void SearchContext::resetSearch() {
     stop = false;
     nodes = 0;
     ply = 0;
-    if (table != nullptr) {
-        // table->clear();
-    }
+    // stack.clear();
 }
 
 void SearchContext::startTimer() { timeStart = std::chrono::steady_clock::now(); }
@@ -203,12 +201,25 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         ctx.stop = true;
     }
 
-    if (game.halfmove >= 100) {
+    if (game.halfmove >= 100 || game.is_repetition_draw()) {
         return 0;
     }
 
     if (depth <= 0) {
         return quiescence(ctx, game, alpha, beta);
+    }
+
+    if (allowNullMove && depth >= 3 && !game.is_check(game.color) &&
+        game.has_non_pawn_material(game.color)) {
+        constexpr int R = 2;
+
+        game.make_null_move();
+        Score score = -search(ctx, game, -beta, -beta + 1, depth - 1 - R, false);
+        game.undo_null_move();
+
+        if (score >= beta) {
+            return score;
+        }
     }
 
     uint64_t entryIdx = game.hash & (ctx.table->size() - 1);
@@ -231,19 +242,6 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
             }
         }
         set_move_score(moves, entry.best, mate);
-    }
-
-    if (allowNullMove && depth >= 3 && !game.is_check(game.color) &&
-        game.has_non_pawn_material(game.color)) {
-        constexpr int R = 2;
-
-        game.make_null_move();
-        Score score = -search(ctx, game, -beta, -beta + 1, depth - 1 - R, false);
-        game.undo_null_move();
-
-        if (score >= beta) {
-            return score;
-        }
     }
 
     ctx.ply++;
@@ -287,7 +285,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
 
         if (score >= beta) {
             if (!move.is_capture()) {
-                if (move != ctx.killers[ctx.ply][0]) {
+                if (legalMove && move != ctx.killers[ctx.ply][0]) {
                     ctx.killers[ctx.ply][1] = ctx.killers[ctx.ply][0];
                     ctx.killers[ctx.ply][0] = move;
                 }

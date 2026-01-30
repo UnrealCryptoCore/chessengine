@@ -166,6 +166,7 @@ void Game::reset() {
         bitboard[BLACK][piece] = 0ULL;
     }
     undoStack.clear();
+    history.clear();
     hash = calculateHash();
 }
 
@@ -424,6 +425,15 @@ bool Game::isSqaureAttacked(Position pos, uint8_t enemy) {
     return false;
 }
 
+bool Game::is_repetition_draw() {
+    for (uint16_t i = 2; i < halfmove; i += 2) {
+        if (history[history.size() - 1 - i] == hash) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool Game::is_check(uint8_t color) {
     BitBoard board = bitboard[color][uint8_t(Piece::KING)];
     Position pos = bitboard_to_position(board);
@@ -531,9 +541,11 @@ void Game::make_move(Move move) {
 
     color ^= 1;
     hash ^= zobristSide;
+    history.push_back(hash);
 }
 
 void Game::undo_move(Move move) {
+    history.pop_back();
     UndoMove undo = undoStack.back();
     color ^= 1;
 

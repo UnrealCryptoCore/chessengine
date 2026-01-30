@@ -229,17 +229,18 @@ template <typename T, std::size_t N> struct StackList {
 using MoveList = StackList<ScoreMove, 256>;
 
 struct Game {
-    std::array<std::array<BitBoard, numberChessPieces>, 2> bitboard;
-    std::array<uint8_t, 64> board;
-    uint8_t color;
+    std::array<std::array<BitBoard, numberChessPieces>, 2> bitboard{};
+    std::array<uint8_t, 64> board{};
+    uint8_t color = WHITE;
     uint8_t ep = NO_EP;
     uint8_t castling = 0;
     uint8_t halfmove = 0;
     uint8_t fullmoves = 0;
     std::array<BitBoard, 2> occupancy{0, 0};
-    BitBoard occupancyBoth;
+    BitBoard occupancyBoth = 0;
     uint64_t hash = 0;
-    StackList<UndoMove, 1024> undoStack;
+    StackList<UndoMove, 1024> undoStack{};
+    StackList<uint64_t, 1024> history{};
 
     void reset();
     void calculateOccupancy();
@@ -253,6 +254,7 @@ struct Game {
     bool isSqaureAttacked(Position pos, uint8_t color);
     Position get_lva(BitBoard attackers, uint8_t color);
     BitBoard squareAttackers(Position pos, uint8_t color);
+    bool is_repetition_draw();
     bool has_non_pawn_material(uint8_t color);
     bool is_valid_move(Move move);
     bool is_check(uint8_t color);
