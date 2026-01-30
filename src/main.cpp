@@ -20,12 +20,12 @@ void play(ChessGame::Game &game) {
             std::print("\nEnter move number: ");
             std::getline(std::cin, inp);
             if (inp.starts_with("undo")) {
-                game.undoMove(moveHistory.back());
+                game.undo_move(moveHistory.back());
                 moveHistory.pop_back();
                 break;
             } else {
                 uint8_t move = std::stoi(inp);
-                game.playMove(moves[move].move);
+                game.make_move(moves[move].move);
                 moveHistory.push_back(moves[move].move);
                 break;
             }

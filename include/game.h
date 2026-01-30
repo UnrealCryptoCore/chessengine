@@ -6,7 +6,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <iterator>
-#include <print>
 #include <sstream>
 #include <string>
 
@@ -28,11 +27,6 @@
 #define CASTLING_KING_MASK_BLACK (2 << CASTLING_KING_MASK_WHITE)
 
 #define PIECE_COLOR_MASK 0b1000
-
-/*#define MOVE_CAPTURE 1
-#define MOVE_EP 2
-#define MOVE_CASTLE 4
-#define MOVE_DOUBLE_PAWN 8*/
 
 namespace ChessGame {
 
@@ -265,11 +259,13 @@ struct Game {
     void legal_moves(MoveList &moves);
     void pseudo_legal_moves(MoveList &moves);
     bool is_pseudo_legal(Move move);
-    void movePiece(Position from, Position to, Piece pieceFrom, uint8_t pieceTo);
-    void movePiece(Position from, Position to);
+    void move_piece(Position from, Position to, Piece pieceFrom, uint8_t pieceTo);
+    void move_piece(Position from, Position to);
     void playMove(std::string &move);
-    void playMove(Move move);
-    void undoMove(Move move);
+    void make_move(Move move);
+    void undo_move(Move move);
+    void make_null_move();
+    void undo_null_move();
     uint32_t perft(uint32_t n);
     uint64_t calculateHash();
     void fromSimpleBoard();

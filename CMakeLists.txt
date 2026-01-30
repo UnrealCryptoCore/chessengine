@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(ENGINE_VERSION "v0.7.1_pvs_root")
+set(ENGINE_VERSION "v0.8_nmp")
 
 add_library(chess_game 
     src/game.cpp

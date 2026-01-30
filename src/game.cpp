@@ -192,11 +192,11 @@ void checkOccupancy(Game &game) {
 
 bool Game::is_valid_move(Move move) {
     bool res = true;
-    playMove(move);
-    if (is_check(color)) {
+    make_move(move);
+    if (is_check(!color)) {
         res = false;
     }
-    undoMove(move);
+    undo_move(move);
     return res;
 }
 
@@ -419,15 +419,15 @@ bool Game::isSqaureAttacked(Position pos, uint8_t enemy) {
 }
 
 bool Game::is_check(uint8_t color) {
-    BitBoard board = bitboard[!color][(uint8_t)Piece::KING];
+    BitBoard board = bitboard[color][uint8_t(Piece::KING)];
     Position pos = bitboard_to_position(board);
-    if (isSqaureAttacked(pos, color)) {
+    if (isSqaureAttacked(pos, !color)) {
         return true;
     }
     return false;
 }
 
-inline void Game::movePiece(Position from, Position to, Piece pieceFrom, uint8_t pTo) {
+inline void Game::move_piece(Position from, Position to, Piece pieceFrom, uint8_t pTo) {
     Piece pieceTo = piece_from_piece(pTo);
     BitBoard &bbFrom = bitboard[color][(uint8_t)pieceFrom];
     BitBoard &bbTo = bitboard[color][(uint8_t)pieceTo];
@@ -440,11 +440,11 @@ inline void Game::movePiece(Position from, Position to, Piece pieceFrom, uint8_t
     hash ^= zobristPieces[color][(uint8_t)pieceTo][to];
 }
 
-inline void Game::movePiece(Position from, Position to) {
-    movePiece(from, to, piece_from_piece(board[from]), board[from]);
+inline void Game::move_piece(Position from, Position to) {
+    move_piece(from, to, piece_from_piece(board[from]), board[from]);
 }
 
-void Game::playMove(Move move) {
+void Game::make_move(Move move) {
     UndoMove &undo = undoStack.push_back_empty();
     undo = {
         .occupancy = {occupancy[WHITE], occupancy[BLACK], occupancyBoth},
@@ -482,7 +482,7 @@ void Game::playMove(Move move) {
         rFrom = castlingRookMovesFrom[color][side];
         rTo = castlingRookMovesTo[color][side];
 
-        movePiece(rFrom, rTo);
+        move_piece(rFrom, rTo);
         unset_bit(occupancy[color], rFrom);
         set_bit(occupancy[color], rTo);
 
@@ -509,7 +509,7 @@ void Game::playMove(Move move) {
 
     unset_bit(occupancy[color], move.from);
     set_bit(occupancy[color], move.to);
-    movePiece(move.from, move.to, pieceFrom, cpieceTo);
+    move_piece(move.from, move.to, pieceFrom, cpieceTo);
     occupancyBoth = occupancy[WHITE] | occupancy[BLACK];
 
     if (pieceFrom == Piece::PAWN || move.flags == MoveType::MOVE_CAPTURE) {
@@ -522,7 +522,7 @@ void Game::playMove(Move move) {
     hash ^= zobristSide;
 }
 
-void Game::undoMove(Move move) {
+void Game::undo_move(Move move) {
     UndoMove undo = undoStack.back();
     color ^= 1;
 
@@ -532,7 +532,7 @@ void Game::undoMove(Move move) {
         pieceTo = to_piece(Piece::PAWN, color);
     }
 
-    movePiece(move.to, move.from, pieceFrom, pieceTo);
+    move_piece(move.to, move.from, pieceFrom, pieceTo);
 
     castling = undo.castling;
     ep = undo.ep;
@@ -541,7 +541,7 @@ void Game::undoMove(Move move) {
         uint8_t side = move.to > move.from;
         Position rFrom = castlingRookMovesFrom[color][side];
         Position rTo = castlingRookMovesTo[color][side];
-        movePiece(rTo, rFrom);
+        move_piece(rTo, rFrom);
     }
 
     if ((uint8_t)move.flags & ((uint8_t)MoveType::MOVE_CAPTURE | (uint8_t)MoveType::MOVE_EP)) {
@@ -564,6 +564,28 @@ void Game::undoMove(Move move) {
     undoStack.pop_back();
 }
 
+void Game::make_null_move() {
+    UndoMove &undo = undoStack.push_back_empty();
+    undo = {
+        .hash = hash,
+        .ep = ep,
+    };
+    hash ^= zobristEP[ep];
+    ep = NO_EP;
+    hash ^= zobristEP[ep];
+
+    hash ^= zobristSide;
+    color ^= 1;
+}
+
+void Game::undo_null_move() {
+    UndoMove undo = undoStack.back();
+    ep = undo.ep;
+    hash = undo.hash;
+    color ^= 1;
+    undoStack.pop_back();
+}
+
 uint32_t Game::perft(uint32_t n) {
     if (n == 0) {
         return 1;
@@ -573,13 +595,13 @@ uint32_t Game::perft(uint32_t n) {
     MoveList moves;
     pseudo_legal_moves(moves);
     for (auto move : moves) {
-        playMove(move.move);
-        if (is_check(color)) {
-            undoMove(move.move);
+        make_move(move.move);
+        if (is_check(!color)) {
+            undo_move(move.move);
             continue;
         }
         counter += perft(n - 1);
-        undoMove(move.move);
+        undo_move(move.move);
     }
     return counter;
 }
@@ -618,7 +640,7 @@ void Game::playMove(std::string &move) {
         .flags = flags,
         .promote = promote,
     };
-    playMove(m);
+    make_move(m);
 }
 
 uint64_t Game::calculateHash() {
@@ -721,7 +743,7 @@ void Game::loadFen(std::stringstream &ss) {
         uint8_t rank = fenEnPassant.at(1) - '1';
         ep = file;
     }
-    
+
     halfmove = std::stoi(fenHalfMoves);
     fullmoves = std::stoi(fenFullMoves);
 
@@ -990,15 +1012,15 @@ void perftInfo(Game &game, uint32_t n) {
     uint32_t count = 0;
     game.pseudo_legal_moves(moves);
     for (auto move : moves) {
-        game.playMove(move.move);
-        if (game.is_check(game.color)) {
-            game.undoMove(move.move);
+        game.make_move(move.move);
+        if (game.is_check(!game.color)) {
+            game.undo_move(move.move);
             continue;
         }
         uint32_t tmp = game.perft(n - 1);
         count += tmp;
         std::print("{}: {}\n", move.move.toSimpleNotation(), tmp);
-        game.undoMove(move.move);
+        game.undo_move(move.move);
     }
 
     std::print("\nnodes searched {}: \n", count);
