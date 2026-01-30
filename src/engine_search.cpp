@@ -395,7 +395,7 @@ Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score b
 
     while (moves.size() > 0) {
         ChessGame::ScoreMove move = find_next_rm(game, moves);
-        if (!move.move.is_capture()) {
+        if (!move.move.is_capture() && move.move.promote == ChessGame::Piece::NONE) {
             continue;
         }
         game.make_move(move.move);
