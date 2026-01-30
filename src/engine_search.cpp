@@ -85,7 +85,8 @@ Score score_move(ChessGame::Game &game, ChessGame::Move move) {
     uint8_t own = (uint8_t)ChessGame::piece_from_piece(game.board[move.from]);
     if (move.flags == ChessGame::MoveType::MOVE_CAPTURE) {
         uint8_t enemy = (uint8_t)ChessGame::piece_from_piece(game.board[move.to]);
-        return ChessGame::Evaluation::pieceValues[enemy] * 10 - ChessGame::Evaluation::pieceValues[own];
+        return ChessGame::Evaluation::pieceValues[enemy] * 10 -
+               ChessGame::Evaluation::pieceValues[own];
     }
 
     return ChessGame::Evaluation::pieceValues[own] / 10;
@@ -190,11 +191,12 @@ void inline update_TT(SearchContext &ctx, ChessGame::Game &game, uint32_t entryI
     }
 }
 
-Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth, bool allowNullMove) {
+Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth,
+             bool allowNullMove) {
     ctx.nodes++;
 
     if (ctx.stop) {
-        return -max_value;
+        return 0;
     }
 
     if ((ctx.nodes & 2047) == 0 && ctx.timeUp()) {
@@ -231,7 +233,8 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         set_move_score(moves, entry.best, mate);
     }
 
-    if (allowNullMove && depth >= 3 && !game.is_check(game.color) && game.has_non_pawn_material(game.color)) {
+    if (allowNullMove && depth >= 3 && !game.is_check(game.color) &&
+        game.has_non_pawn_material(game.color)) {
         constexpr int R = 2;
 
         game.make_null_move();
@@ -308,7 +311,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     return bestScore;
 }
 
-Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth, uint8_t kBest) {
+Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
     ctx.ply = 1;
     ctx.nodes++;
     Score alpha = -mate;
@@ -331,22 +334,17 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
         Score score;
         if (i == 0) {
             score = -search(ctx, game, -mate, mate, depth - 1, true);
-            move.exact = true;
         } else {
             score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, true);
             if (score > alpha && score < beta) {
                 score = -search(ctx, game, -mate, mate, depth - 1, true);
-                move.exact = true;
-            } else {
-                move.exact = false;
             }
         }
 
         game.undo_move(move.move);
 
         if (ctx.stop) {
-            move.exact = false;
-            break;
+            return 0;
         }
 
         move.score = score;

@@ -184,7 +184,6 @@ struct Move {
 struct ScoreMove {
     Move move;
     int16_t score;
-    bool exact;
 };
 
 template <typename T, std::size_t N> struct StackList {

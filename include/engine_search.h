@@ -89,6 +89,6 @@ Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score b
 
 Score test_search_root(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
 
-Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth, uint8_t topK);
+Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth);
 
 } // namespace Search

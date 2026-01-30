@@ -1,5 +1,4 @@
 #include "engine_search.h"
-#include "evaluation.h"
 #include "game.h"
 #include <chrono>
 #include <cmath>
@@ -147,7 +146,12 @@ struct IO {
             .defaultStr = "16",
         });
         sendOption(Option{
-            .name = "MultiPV", .type = OptionType::SPIN, .min = "1", .max = "256", .defaultStr = "1"});
+            .name = "MultiPV",
+            .type = OptionType::SPIN,
+            .min = "1",
+            .max = "256",
+            .defaultStr = "1",
+        });
     }
 
     static void sendReadyOk() { send("readyok"); }
@@ -196,20 +200,20 @@ Search::SearchResult iterative_deepening(UciGame &game, uint32_t depth) {
     game.game.legal_moves(game.ctx.moves);
 
     for (uint32_t i = 1; i <= depth; i++) {
-        Search::search_root(game.ctx, game.game, i, game.kBest);
-        Search::sort_moves(game.ctx.moves);
+        Search::search_root(game.ctx, game.game, i);
 
         if (game.ctx.stop) {
             break;
         }
 
+        Search::sort_moves(game.ctx.moves);
         ChessGame::ScoreMove bestMove = game.ctx.moves[0];
 
         auto end = std::chrono::steady_clock::now();
         auto elapsed =
             std::chrono::duration_cast<std::chrono::milliseconds>(end - startDepth).count();
         std::vector<ChessGame::Move> pvs{game.ctx.moves[0].move};
-        //calculate_pv_moves(game, pvs);
+        // calculate_pv_moves(game, pvs);
         Search::SearchResult result{
             .score = bestMove.score,
             .bestMove = bestMove.move,
@@ -228,6 +232,13 @@ Search::SearchResult iterative_deepening(UciGame &game, uint32_t depth) {
         }
     }
     return lastResult;
+}
+
+ChessGame::Move choose_top_k(ChessGame::MoveList &moves, uint8_t k) {
+    if (k <= 1) {
+        return moves[0].move;
+    }
+    return moves[std::rand() % k].move;
 }
 
 ChessGame::Move simple_choose_move(ChessGame::MoveList &moves) {
@@ -265,13 +276,9 @@ ChessGame::Move choose_move(Search::SearchContext &ctx) {
     return ctx.moves[0].move;
 }
 
-void filter_move_canditates(ChessGame::MoveList &moves, Search::Score window) {
+void filter_move_canditates(ChessGame::MoveList &moves, Search::Score window, uint8_t k) {
+    moves.resize(k);
     for (uint16_t i = 1; i < moves.size(); i++) {
-        if (!moves[i].exact) {
-            moves.remove_unordered(i);
-            i--;
-            continue;
-        }
         if (moves[i].score < moves[0].score - window) {
             moves.remove_unordered(i);
             i--;
@@ -286,8 +293,8 @@ void think(UciGame &game) {
     game.ctx.moves.clear();
 
     iterative_deepening(game, game.depth);
-    filter_move_canditates(game.ctx.moves, 20);
-    ChessGame::Move best = simple_choose_move(game.ctx.moves);
+    filter_move_canditates(game.ctx.moves, 20, game.kBest);
+    ChessGame::Move best = choose_top_k(game.ctx.moves, game.kBest);
     IO::sendBestMove(best);
 }
 
@@ -322,8 +329,8 @@ uint64_t calc_time(UciGame &game) {
 }
 
 int main() {
-    //ChessGame::Evaluation::show_piece_square_table(ChessGame::Evaluation::piece_table[0][0]);
-    //exit(0);
+    // ChessGame::Evaluation::show_piece_square_table(ChessGame::Evaluation::piece_table[0][0]);
+    // exit(0);
     std::srand(time(NULL));
     std::string inp;
     ChessGame::initConstants();
