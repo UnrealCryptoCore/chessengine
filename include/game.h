@@ -254,6 +254,7 @@ struct Game {
     bool isSqaureAttacked(Position pos, uint8_t color);
     Position get_lva(BitBoard attackers, uint8_t color);
     BitBoard squareAttackers(Position pos, uint8_t color);
+    bool has_non_pawn_material(uint8_t color);
     bool is_valid_move(Move move);
     bool is_check(uint8_t color);
     void legal_moves(MoveList &moves);

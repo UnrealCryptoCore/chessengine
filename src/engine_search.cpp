@@ -70,7 +70,7 @@ void SearchContext::resetSearch() {
 void SearchContext::startTimer() { timeStart = std::chrono::steady_clock::now(); }
 
 bool SearchContext::timeUp() const {
-    if (thinkingTime == 0) {
+    if (thinkingTime <= 0) {
         return false;
     }
     auto now = std::chrono::steady_clock::now();
@@ -231,7 +231,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         set_move_score(moves, entry.best, mate);
     }
 
-    if (depth >= 3 && !game.is_check(game.color)) {
+    if (depth >= 3 && !game.is_check(game.color) && game.has_non_pawn_material(game.color)) {
         constexpr int R = 2;
 
         game.make_null_move();

@@ -1,5 +1,6 @@
 #include "engine_search.h"
 #include "game.h"
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -53,11 +54,19 @@ constexpr const char *toString(OptionType type) {
     }
 }
 
+struct TimeManagement {
+    int64_t wtime = -1;
+    int64_t btime = -1;
+    int64_t winc = -1;
+    int64_t binc = -1;
+    int64_t movetime = -1;
+};
+
 struct UciGame {
     ChessGame::Game game{};
     Search::SearchContext ctx{};
-    uint64_t wtime = 0;
-    uint64_t btime = 0;
+    TimeManagement timeValues;
+    int32_t depth;
     uint8_t kBest = 1;
 
     void new_uci_game(Search::TranspositionTable *table) {
@@ -133,13 +142,7 @@ struct IO {
             .max = "128",
             .defaultStr = "16",
         });
-        sendOption(Option{
-            .name = "MultiPV",
-            .type = OptionType::SPIN,
-            .min = "1",
-            .max = "",
-            .defaultStr = "1"
-        });
+        sendOption(Option{.name = "MultiPV", .type = OptionType::SPIN, .min = "1", .max = "", .defaultStr = "1"});
     }
 
     static void sendReadyOk() { send("readyok"); }
@@ -254,27 +257,45 @@ void filter_move_canditates(ChessGame::MoveList &moves, Search::Score window) {
     }
 }
 
-void think(UciGame &game, uint32_t depth) {
+void think(UciGame &game) {
     game.ctx.startTimer();
     game.ctx.resetSearch();
     game.ctx.moves.clear();
 
-    iterative_deepening(game, depth);
+    iterative_deepening(game, game.depth);
     filter_move_canditates(game.ctx.moves, 20);
     ChessGame::Move best = simple_choose_move(game.ctx.moves);
     IO::sendBestMove(best);
 }
 
-uint64_t calculateSafetyMargin(uint64_t time) {
+uint64_t calc_safe_move_time(uint64_t time) {
     if (time <= 50) {
-        return 7;
+        return time - 7;
     } else if (time <= 100) {
-        return 10;
+        return time - 10;
     } else if (time <= 1000) {
-        return 15;
+        return time - 15;
     } else {
-        return 20;
+        return time - 20;
     }
+}
+
+uint64_t calc_time(UciGame &game) {
+    constexpr int64_t min = 10;
+    int64_t timeLeft = game.game.color == WHITE ? game.timeValues.wtime : game.timeValues.btime;
+    int64_t timeInc = game.game.color == WHITE ? game.timeValues.winc : game.timeValues.binc;
+
+    int64_t target = timeLeft / 40 + timeInc;
+
+    if (target > 0.8 * timeLeft) {
+        target = 0.8 * timeLeft;
+    }
+
+    target -= 20;
+    if (target <= min) {
+        target = min;
+    }
+    return target;
 }
 
 int main() {
@@ -325,34 +346,51 @@ int main() {
             }
 
         } else if (cmd == "go") {
-            std::getline(ss, cmd, ' ');
+            ss >> cmd;
             if (cmd == "perft") {
-                std::getline(ss, arg, ' ');
-                uint32_t n = std::stoi(arg);
+                uint32_t n;
+                ss >> n;
                 ChessGame::perftInfo(game.game, n);
-            } else if (cmd == "depth") {
-                game.ctx.thinkingTime = 0;
-                std::getline(ss, arg, ' ');
-                uint32_t n = std::stoi(arg);
-                think(game, n);
-            } else if (cmd == "movetime") {
-                std::getline(ss, arg, ' ');
-                uint32_t n = std::stoi(arg);
-                game.ctx.thinkingTime = n - calculateSafetyMargin(n);
-                think(game, 1024);
             } else {
-                logger.log(std::format("What is {}?", cmd));
+                game.depth = -1;
+                game.timeValues = TimeManagement{};
+                do {
+                    if (cmd == "depth") {
+                        ss >> game.depth;
+                    } else if (cmd == "movetime") {
+                        ss >> game.timeValues.movetime;
+                    } else if (cmd == "wtime") {
+                        std::print("here1 {}\n", arg);
+                        ss >> game.timeValues.wtime;
+                    } else if (cmd == "btime") {
+                        ss >> game.timeValues.btime;
+                    } else if (cmd == "winc") {
+                        ss >> game.timeValues.winc;
+                    } else if (cmd == "binc") {
+                        ss >> game.timeValues.binc;
+                    } else {
+                        logger.log(std::format("What is {}?", cmd));
+                    }
+                } while (ss >> cmd);
+                if (game.timeValues.movetime != -1) {
+                    game.ctx.thinkingTime = game.timeValues.movetime = calc_safe_move_time(game.timeValues.movetime);
+                } else if (game.depth == -1) {
+                    game.ctx.thinkingTime = calc_time(game);
+                }
+                if (game.depth == -1) {
+                    game.depth = Search::max_depth;
+                }
+                think(game);
             }
-
         } else if (cmd == "setoption") {
-            std::getline(ss, cmd, ' ');
+            ss >> cmd;
             if (cmd == "Hash") {
-                std::getline(ss, arg, ' ');
-                uint32_t n = std::stoi(arg);
+                uint32_t n;
+                ss >> n;
                 table.setsize(n);
             } else if (cmd == "MultiPV") {
-                std::getline(ss, arg, ' ');
-                uint32_t n = std::stoi(arg);
+                uint32_t n;
+                ss >> n;
                 game.kBest = n;
             }
         } else if (cmd == "stop") {

@@ -427,6 +427,10 @@ bool Game::is_check(uint8_t color) {
     return false;
 }
 
+bool Game::has_non_pawn_material(uint8_t color) {
+    return occupancy[color] ^ bitboard[color][uint8_t(Piece::KING)] ^ bitboard[color][uint8_t(Piece::PAWN)];
+}
+
 inline void Game::move_piece(Position from, Position to, Piece pieceFrom, uint8_t pTo) {
     Piece pieceTo = piece_from_piece(pTo);
     BitBoard &bbFrom = bitboard[color][(uint8_t)pieceFrom];
