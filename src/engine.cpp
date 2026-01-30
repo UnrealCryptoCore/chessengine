@@ -1,6 +1,6 @@
 #include "engine_search.h"
+#include "evaluation.h"
 #include "game.h"
-#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -16,6 +16,7 @@
 #include <ranges>
 #include <sstream>
 #include <string>
+#include <vector>
 
 std::string name = "idk";
 std::string author = "cryptocore";
@@ -39,7 +40,7 @@ struct Option {
     std::string defaultStr = "";
 };
 
-constexpr const char *toString(OptionType type) {
+constexpr std::string toString(OptionType type) {
     switch (type) {
     case OptionType::SPIN:
         return "spin";
@@ -51,6 +52,8 @@ constexpr const char *toString(OptionType type) {
         return "button";
     case OptionType::STRING:
         return "string";
+    default:
+        return "";
     }
 }
 
@@ -118,6 +121,7 @@ struct IO {
     static void sendOption(const Option &option) {
         std::string res = "option name ";
         res += option.name;
+        res += " type " + toString(option.type);
         if (!option.defaultStr.empty()) {
             res += " default " + option.defaultStr;
         }
@@ -142,12 +146,15 @@ struct IO {
             .max = "128",
             .defaultStr = "16",
         });
-        sendOption(Option{.name = "MultiPV", .type = OptionType::SPIN, .min = "1", .max = "", .defaultStr = "1"});
+        sendOption(Option{
+            .name = "MultiPV", .type = OptionType::SPIN, .min = "1", .max = "256", .defaultStr = "1"});
     }
 
     static void sendReadyOk() { send("readyok"); }
 
-    static void sendBestMove(ChessGame::Move move) { send(std::format("bestmove {}", move.toSimpleNotation())); }
+    static void sendBestMove(ChessGame::Move move) {
+        send(std::format("bestmove {}", move.toSimpleNotation()));
+    }
 
     static void sendSearchInfo(Search::SearchResult &result, uint32_t hashfull) {
         uint32_t nps = result.nodes * 1000.0f / result.elapsed;
@@ -159,17 +166,28 @@ struct IO {
             pvs += move.toSimpleNotation();
         }
         std::string score;
-        if (result.score > Search::mate) {
-            score = std::format("mate {}", result.score - Search::mate);
+        if (Search::is_mate(result.score)) {
+            score = std::format("mate {}", Search::mate - std::abs(result.score));
         } else {
             score = std::format("cp {}", result.score);
         }
-        send(std::format("info depth {} score {} time {} nodes {} nps {} pv {} hashfull {}", result.depth, score,
-                         result.elapsed, result.nodes, nps, pvs, hashfull));
+        send(std::format("info depth {} score {} time {} nodes {} nps {} pv {} hashfull {}",
+                         result.depth, score, result.elapsed, result.nodes, nps, pvs, hashfull));
     }
 
     static bool recv(std::string &s) { return static_cast<bool>(std::getline(std::cin, s)); }
 };
+
+void calculate_pv_moves(UciGame &game, std::vector<ChessGame::Move> moves) {
+    auto move = moves.back();
+    game.game.make_move(move);
+    Search::TableEntry &entry = game.ctx.table->get(game.game.hash);
+    if (entry.hash == game.game.hash) {
+        moves.push_back(entry.best);
+        calculate_pv_moves(game, moves);
+    }
+    game.game.undo_move(move);
+}
 
 Search::SearchResult iterative_deepening(UciGame &game, uint32_t depth) {
     Search::SearchResult lastResult;
@@ -188,12 +206,15 @@ Search::SearchResult iterative_deepening(UciGame &game, uint32_t depth) {
         ChessGame::ScoreMove bestMove = game.ctx.moves[0];
 
         auto end = std::chrono::steady_clock::now();
-        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - startDepth).count();
+        auto elapsed =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end - startDepth).count();
+        std::vector<ChessGame::Move> pvs{game.ctx.moves[0].move};
+        //calculate_pv_moves(game, pvs);
         Search::SearchResult result{
             .score = bestMove.score,
             .bestMove = bestMove.move,
             .nodes = game.ctx.nodes,
-            .pv = {bestMove.move},
+            .pv = pvs,
             .depth = i,
             .elapsed = elapsed,
         };
@@ -209,7 +230,9 @@ Search::SearchResult iterative_deepening(UciGame &game, uint32_t depth) {
     return lastResult;
 }
 
-ChessGame::Move simple_choose_move(ChessGame::MoveList &moves) { return moves[std::rand() % moves.size()].move; }
+ChessGame::Move simple_choose_move(ChessGame::MoveList &moves) {
+    return moves[std::rand() % moves.size()].move;
+}
 
 ChessGame::Move choose_move(Search::SearchContext &ctx) {
     constexpr Search::Score window = 20;
@@ -299,7 +322,9 @@ uint64_t calc_time(UciGame &game) {
 }
 
 int main() {
-    srand(time(NULL));
+    //ChessGame::Evaluation::show_piece_square_table(ChessGame::Evaluation::piece_table[0][0]);
+    //exit(0);
+    std::srand(time(NULL));
     std::string inp;
     ChessGame::initConstants();
 
@@ -360,7 +385,6 @@ int main() {
                     } else if (cmd == "movetime") {
                         ss >> game.timeValues.movetime;
                     } else if (cmd == "wtime") {
-                        std::print("here1 {}\n", arg);
                         ss >> game.timeValues.wtime;
                     } else if (cmd == "btime") {
                         ss >> game.timeValues.btime;
@@ -373,7 +397,8 @@ int main() {
                     }
                 } while (ss >> cmd);
                 if (game.timeValues.movetime != -1) {
-                    game.ctx.thinkingTime = game.timeValues.movetime = calc_safe_move_time(game.timeValues.movetime);
+                    game.ctx.thinkingTime = game.timeValues.movetime =
+                        calc_safe_move_time(game.timeValues.movetime);
                 } else if (game.depth == -1) {
                     game.ctx.thinkingTime = calc_time(game);
                 }

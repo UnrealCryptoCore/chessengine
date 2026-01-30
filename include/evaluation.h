@@ -94,8 +94,9 @@ constexpr auto calculate_piece_table() {
             uint8_t rank = rank_from_pos(pos);
             uint8_t file = file_from_pos(pos);
             rank = 7 - rank;
-            pt[0][p][pos] = pieceTableMiddleGame[p][pos];
-            pt[1][p][coords_to_pos(file, rank)] = pieceTableMiddleGame[p][pos];
+            int16_t value = pieceTableMiddleGame[p][pos];
+            pt[1][p][pos] = value;
+            pt[0][p][coords_to_pos(file, rank)] = value;
         }
     }
     return pt;
@@ -103,6 +104,7 @@ constexpr auto calculate_piece_table() {
 
 constexpr std::array<std::array<std::array<int16_t, 64>, numberChessPieces>, 2> piece_table = calculate_piece_table();
 
+void show_piece_square_table(const std::array<int16_t, 64> &squares);
 int32_t evaluate(Game &game);
 
 } // namespace Evaluation

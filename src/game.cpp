@@ -147,7 +147,8 @@ std::string Move::toAlgebraicNotation(uint8_t coloredPiece) const {
 }
 
 std::string Move::toString() const {
-    return std::format("from: {} to: {} flags: {} promote: {}", from, to, (uint8_t)flags, (uint8_t)promote);
+    return std::format("from: {} to: {} flags: {} promote: {}", from, to, (uint8_t)flags,
+                       (uint8_t)promote);
 }
 
 void Game::reset() {
@@ -241,7 +242,8 @@ void Game::validRookMoves(Position pos, MoveList &moves) {
     BitBoard attacks = rookAttacks(pos);
     attacks &= ~occupancy[color];
     for (Position to : BitRange{attacks}) {
-        MoveType flags = (MoveType)((uint8_t)(MoveType::MOVE_CAPTURE) * (board[to] != (uint8_t)Piece::NONE));
+        MoveType flags =
+            (MoveType)((uint8_t)(MoveType::MOVE_CAPTURE) * (board[to] != (uint8_t)Piece::NONE));
         moves.push_back(ScoreMove{{pos, to, flags}});
     }
 }
@@ -250,7 +252,8 @@ void Game::validBishopMoves(Position pos, MoveList &moves) {
     BitBoard attacks = bishopAttacks(pos);
     attacks &= ~occupancy[color];
     for (Position to : BitRange{attacks}) {
-        MoveType flags = (MoveType)((uint8_t)(MoveType::MOVE_CAPTURE) * (board[to] != (uint8_t)Piece::NONE));
+        MoveType flags =
+            (MoveType)((uint8_t)(MoveType::MOVE_CAPTURE) * (board[to] != (uint8_t)Piece::NONE));
         moves.push_back(ScoreMove{{pos, to, flags}});
     }
 }
@@ -292,7 +295,8 @@ void Game::validPawnMoves(Position pos, MoveList &moves) {
     }
 
     Position move2 = FORWARD(move, forward);
-    if (is_on_rank(pos, sndHomeRank[color]) && !is_set(occupancyBoth, move) && !is_set(occupancyBoth, move2)) {
+    if (is_on_rank(pos, sndHomeRank[color]) && !is_set(occupancyBoth, move) &&
+        !is_set(occupancyBoth, move2)) {
         MoveType flags = MoveType::MOVE_DOUBLE_PAWN;
         moves.push_back(ScoreMove{{pos, move2, flags}});
     }
@@ -301,7 +305,8 @@ void Game::validPawnMoves(Position pos, MoveList &moves) {
 void Game::validBitMaskMoves(Position pos, MoveList &moves, std::array<BitBoard, 64> boards) {
     BitBoard bitmoves = boards[pos] & ~occupancy[color];
     for (Position to : BitRange{bitmoves}) {
-        MoveType flags = (MoveType)((uint8_t)MoveType::MOVE_CAPTURE * is_set(occupancy[!color], to));
+        MoveType flags =
+            (MoveType)((uint8_t)MoveType::MOVE_CAPTURE * is_set(occupancy[!color], to));
         moves.push_back(ScoreMove{{pos, to, flags}});
     }
 }
@@ -330,7 +335,8 @@ void Game::pseudo_legal_moves(MoveList &moves) {
         validBitMaskMoves(pos, moves, kingMoves);
         MoveType flags = MoveType::MOVE_CASTLE;
         for (uint8_t side = 0; side < 2; side++) {
-            if (castling & castlingMask[color][side] && (castlingPathMasks[color][side] & occupancyBoth) == 0) {
+            if (castling & castlingMask[color][side] &&
+                (castlingPathMasks[color][side] & occupancyBoth) == 0) {
                 bool pathAttack = false;
                 for (Position pos : BitRange{castlingCheckMasks[color][side]}) {
                     if (isSqaureAttacked(pos, !color)) {
@@ -428,7 +434,8 @@ bool Game::is_check(uint8_t color) {
 }
 
 bool Game::has_non_pawn_material(uint8_t color) {
-    return occupancy[color] ^ bitboard[color][uint8_t(Piece::KING)] ^ bitboard[color][uint8_t(Piece::PAWN)];
+    return occupancy[color] ^ bitboard[color][uint8_t(Piece::KING)] ^
+           bitboard[color][uint8_t(Piece::PAWN)];
 }
 
 inline void Game::move_piece(Position from, Position to, Piece pieceFrom, uint8_t pTo) {
@@ -676,7 +683,9 @@ void Game::fromSimpleBoard() {
     calculateOccupancy();
 }
 
-void Game::loadStartingPos() { loadFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"); }
+void Game::loadStartingPos() {
+    loadFen("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1");
+}
 
 void Game::loadFen(const std::string &fen) {
     std::stringstream ss(fen);
@@ -962,14 +971,16 @@ void initKnightMoves() {
 }
 
 void initPawnMoves() {
-    std::array<std::array<std::array<int8_t, 2>, 2>, 2> moves{{{{{{1, 1}}, {{1, -1}}}}, {{{{-1, 1}}, {{-1, -1}}}}}};
+    std::array<std::array<std::array<int8_t, 2>, 2>, 2> moves{
+        {{{{{1, 1}}, {{1, -1}}}}, {{{{-1, 1}}, {{-1, -1}}}}}};
 
     initMoves(pawnAttacks[0], moves[0]);
     initMoves(pawnAttacks[1], moves[1]);
 }
 
 void initKingMoves() {
-    std::array<std::array<int8_t, 2>, 8> moves{{{-1, -1}, {0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}}};
+    std::array<std::array<int8_t, 2>, 8> moves{
+        {{-1, -1}, {0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}}};
     initMoves(kingMoves, moves);
 }
 
