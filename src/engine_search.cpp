@@ -431,12 +431,14 @@ Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score b
     }
 
     ChessGame::MoveList moves;
-    game.pseudo_legal_moves(moves);
+    //game.pseudo_legal_moves(moves);
+    game.pseudo_legal_captures(moves);
     score_moves(ctx, game, moves);
 
     while (moves.size() > 0) {
         ChessGame::ScoreMove move = find_next_rm(game, moves);
         if (!move.move.is_capture() && move.move.promote == ChessGame::Piece::NONE) {
+            exit(0);
             continue;
         }
         game.make_move(move.move);

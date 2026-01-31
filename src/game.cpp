@@ -232,7 +232,15 @@ BitBoard Game::bishopAttacks(Position pos) {
     return attacks;
 }
 
-void Game::validRookMoves(Position pos, MoveList &moves) {
+void Game::generate_rook_captures(Position pos, MoveList &moves) {
+    BitBoard attacks = rookAttacks(pos) & occupancy[!color];
+    for (Position to : BitRange{attacks}) {
+        MoveType flags = MoveType::MOVE_CAPTURE;
+        moves.push_back(ScoreMove{{pos, to, flags}});
+    }
+}
+
+void Game::generate_rook_moves(Position pos, MoveList &moves) {
     BitBoard attacks = rookAttacks(pos);
     attacks &= ~occupancy[color];
     for (Position to : BitRange{attacks}) {
@@ -242,7 +250,15 @@ void Game::validRookMoves(Position pos, MoveList &moves) {
     }
 }
 
-void Game::validBishopMoves(Position pos, MoveList &moves) {
+void Game::generate_bishop_captures(Position pos, MoveList &moves) {
+    BitBoard attacks = bishopAttacks(pos) & occupancy[!color];
+    for (Position to : BitRange{attacks}) {
+        MoveType flags = MoveType::MOVE_CAPTURE;
+        moves.push_back(ScoreMove{{pos, to, flags}});
+    }
+}
+
+void Game::generate_bishop_moves(Position pos, MoveList &moves) {
     BitBoard attacks = bishopAttacks(pos);
     attacks &= ~occupancy[color];
     for (Position to : BitRange{attacks}) {
@@ -263,7 +279,33 @@ void addPawnMoves(MoveList &moves, Move move, bool promote) {
     }
 }
 
-void Game::validPawnMoves(Position pos, MoveList &moves) {
+void Game::generate_pawn_captures(Position pos, MoveList &moves) {
+    uint8_t forward = signedColor[color];
+    uint8_t flags = 0;
+
+    Position move = FORWARD(pos, forward);
+    bool promote = is_on_rank(move, promotionRank[color]);
+    if (promote && !is_set(occupancyBoth, move)) {
+        addPawnMoves(moves, Move{pos, move}, promote);
+    }
+
+    BitBoard bitmoves;
+    BitBoard epMask = epMasks[!color][ep];
+
+    bitmoves = pawnAttacks[color][pos] & occupancy[!color];
+    for (Position to : BitRange{bitmoves}) {
+        MoveType flags = MoveType::MOVE_CAPTURE;
+        addPawnMoves(moves, Move{pos, to, flags}, promote);
+    }
+
+    bitmoves = pawnAttacks[color][pos] & epMask;
+    for (Position to : BitRange{bitmoves}) {
+        MoveType flags = MoveType::MOVE_EP;
+        addPawnMoves(moves, Move{pos, to, flags}, promote);
+    }
+}
+
+void Game::generate_pawn_moves(Position pos, MoveList &moves) {
     uint8_t forward = signedColor[color];
     uint8_t flags = 0;
 
@@ -296,7 +338,15 @@ void Game::validPawnMoves(Position pos, MoveList &moves) {
     }
 }
 
-void Game::validBitMaskMoves(Position pos, MoveList &moves, std::array<BitBoard, 64> boards) {
+void Game::valid_bit_mask_captures(Position pos, MoveList &moves, std::array<BitBoard, 64> boards) {
+    BitBoard bitmoves = boards[pos] & occupancy[!color];
+    for (Position to : BitRange{bitmoves}) {
+        MoveType flags = MoveType::MOVE_CAPTURE;
+        moves.push_back(ScoreMove{{pos, to, flags}});
+    }
+}
+
+void Game::valid_bit_mask_moves(Position pos, MoveList &moves, std::array<BitBoard, 64> boards) {
     BitBoard bitmoves = boards[pos] & ~occupancy[color];
     for (Position to : BitRange{bitmoves}) {
         MoveType flags =
@@ -313,27 +363,60 @@ bool Game::is_pseudo_legal(Move move) {
     return true;
 }
 
-void Game::pseudo_legal_moves(MoveList &moves) {
+void Game::pseudo_legal_captures(MoveList &moves) {
     BitBoard pawns = bitboard[color][(uint8_t)Piece::PAWN];
     for (Position pos : BitRange{pawns}) {
-        validPawnMoves(pos, moves);
+        generate_pawn_captures(pos, moves);
     }
 
     BitBoard knights = bitboard[color][(uint8_t)Piece::KNIGHT];
     for (Position pos : BitRange{knights}) {
-        validBitMaskMoves(pos, moves, knightMoves);
+        valid_bit_mask_captures(pos, moves, knightMoves);
     }
 
     BitBoard kings = bitboard[color][(uint8_t)Piece::KING];
     for (Position pos : BitRange{kings}) {
-        validBitMaskMoves(pos, moves, kingMoves);
+        valid_bit_mask_captures(pos, moves, kingMoves);
+    }
+
+    BitBoard rooks = bitboard[color][(uint8_t)Piece::ROOK];
+    for (Position pos : BitRange{rooks}) {
+        generate_rook_captures(pos, moves);
+    }
+
+    BitBoard bishops = bitboard[color][(uint8_t)Piece::BISHOP];
+    for (Position pos : BitRange{bishops}) {
+        generate_bishop_captures(pos, moves);
+    }
+
+    BitBoard queens = bitboard[color][(uint8_t)Piece::QUEEN];
+    for (Position pos : BitRange{queens}) {
+        generate_rook_captures(pos, moves);
+        generate_bishop_captures(pos, moves);
+    }
+}
+
+void Game::pseudo_legal_moves(MoveList &moves) {
+    BitBoard pawns = bitboard[color][(uint8_t)Piece::PAWN];
+    for (Position pos : BitRange{pawns}) {
+        generate_pawn_moves(pos, moves);
+    }
+
+    BitBoard knights = bitboard[color][(uint8_t)Piece::KNIGHT];
+    for (Position pos : BitRange{knights}) {
+        valid_bit_mask_moves(pos, moves, knightMoves);
+    }
+
+    BitBoard kings = bitboard[color][(uint8_t)Piece::KING];
+    for (Position pos : BitRange{kings}) {
+        valid_bit_mask_moves(pos, moves, kingMoves);
         MoveType flags = MoveType::MOVE_CASTLE;
         for (uint8_t side = 0; side < 2; side++) {
             if (castling & castlingMask[color][side] &&
                 (castlingPathMasks[color][side] & occupancyBoth) == 0) {
                 bool pathAttack = false;
                 for (Position pos : BitRange{castlingCheckMasks[color][side]}) {
-                    if (isSqaureAttacked(pos, !color)) {
+                    if (is_sqaure_attacked(pos, !color)) {
                         pathAttack = true;
                         break;
                     }
@@ -347,18 +430,18 @@ void Game::pseudo_legal_moves(MoveList &moves) {
 
     BitBoard rooks = bitboard[color][(uint8_t)Piece::ROOK];
     for (Position pos : BitRange{rooks}) {
-        validRookMoves(pos, moves);
+        generate_rook_moves(pos, moves);
     }
 
     BitBoard bishops = bitboard[color][(uint8_t)Piece::BISHOP];
     for (Position pos : BitRange{bishops}) {
-        validBishopMoves(pos, moves);
+        generate_bishop_moves(pos, moves);
     }
 
     BitBoard queens = bitboard[color][(uint8_t)Piece::QUEEN];
     for (Position pos : BitRange{queens}) {
-        validRookMoves(pos, moves);
-        validBishopMoves(pos, moves);
+        generate_rook_moves(pos, moves);
+        generate_bishop_moves(pos, moves);
     }
 }
 
@@ -389,7 +472,7 @@ BitBoard Game::squareAttackers(Position pos, uint8_t color) {
     return attackers;
 }
 
-bool Game::isSqaureAttacked(Position pos, uint8_t enemy) {
+bool Game::is_sqaure_attacked(Position pos, uint8_t enemy) {
     BitBoard enemyPawns = bitboard[enemy][(uint8_t)Piece::PAWN];
     BitBoard attacks;
 
@@ -418,9 +501,7 @@ bool Game::isSqaureAttacked(Position pos, uint8_t enemy) {
     return false;
 }
 
-bool Game::is_draw() {
-    return halfmove >= 100 || is_repetition_draw();
-}
+bool Game::is_draw() { return halfmove >= 100 || is_repetition_draw(); }
 
 bool Game::is_repetition_draw() {
     for (uint16_t i = 2; i < halfmove; i += 2) {
@@ -434,7 +515,7 @@ bool Game::is_repetition_draw() {
 bool Game::is_check(uint8_t color) {
     BitBoard board = bitboard[color][uint8_t(Piece::KING)];
     Position pos = bitboard_to_position(board);
-    if (isSqaureAttacked(pos, !color)) {
+    if (is_sqaure_attacked(pos, !color)) {
         return true;
     }
     return false;

@@ -255,11 +255,15 @@ struct Game {
     BitBoard attackBoard(BitBoard p, BitBoard mask);
     BitBoard rookAttacks(Position pos);
     BitBoard bishopAttacks(Position pos);
-    void validRookMoves(Position pos, MoveList &moves);
-    void validBishopMoves(Position pos, MoveList &moves);
-    void validPawnMoves(Position pos, MoveList &moves);
-    void validBitMaskMoves(Position pos, MoveList &moves, std::array<BitBoard, 64> boards);
-    bool isSqaureAttacked(Position pos, uint8_t color);
+    void generate_rook_moves(Position pos, MoveList &moves);
+    void generate_rook_captures(Position pos, MoveList &moves);
+    void generate_bishop_captures(Position pos, MoveList &moves);
+    void generate_bishop_moves(Position pos, MoveList &moves);
+    void generate_pawn_captures(Position pos, MoveList &moves);
+    void generate_pawn_moves(Position pos, MoveList &moves);
+    void valid_bit_mask_moves(Position pos, MoveList &moves, std::array<BitBoard, 64> boards);
+    void valid_bit_mask_captures(Position pos, MoveList &moves, std::array<BitBoard, 64> boards);
+    bool is_sqaure_attacked(Position pos, uint8_t color);
     Position get_lva(BitBoard attackers, uint8_t color);
     BitBoard squareAttackers(Position pos, uint8_t color);
     bool is_draw();
@@ -268,6 +272,7 @@ struct Game {
     bool is_valid_move(Move move);
     bool is_check(uint8_t color);
     void legal_moves(MoveList &moves);
+    void pseudo_legal_captures(MoveList &moves);
     void pseudo_legal_moves(MoveList &moves);
     bool is_pseudo_legal(Move move);
     void move_piece(Position from, Position to, Piece pieceFrom, uint8_t pieceTo);

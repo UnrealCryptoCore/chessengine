@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(ENGINE_VERSION "v0.10.2_pv_line")
+set(ENGINE_VERSION "v0.10.3_generate_captures")
 
 add_library(chess_game 
     src/game.cpp
