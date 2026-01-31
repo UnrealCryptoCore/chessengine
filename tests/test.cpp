@@ -1,5 +1,11 @@
 #include "game.h"
+#include <bit>
+#include <cassert>
 #include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+#include <cstdlib>
+#include <print>
+#include <unordered_map>
 
 TEST_CASE("Computing valid positions", "[perft]") {
     ChessGame::initConstants();
@@ -13,8 +19,8 @@ TEST_CASE("Computing valid positions", "[perft]") {
         REQUIRE(game.perft(5) == 4865609);
     }
 
-    SECTION("Position 2: r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ") {
-        game.loadFen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - ");
+    SECTION("Position 2: r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1") {
+        game.loadFen("r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1");
         REQUIRE(game.perft(1) == 48);
         REQUIRE(game.perft(2) == 2039);
         REQUIRE(game.perft(3) == 97862);
@@ -53,12 +59,122 @@ TEST_CASE("Computing valid positions", "[perft]") {
         REQUIRE(game.perft(3) == 89890);
     }
 
-    SECTION("Position 6: 8/Q1p5/8/6P1/Pk2B3/7P/KP1P3P/R1B5 w - - 1 49") {
+    SECTION("Position 7: 8/Q1p5/8/6P1/Pk2B3/7P/KP1P3P/R1B5 w - - 1 49") {
         game.loadFen("8/Q1p5/8/6P1/Pk2B3/7P/KP1P3P/R1B5 w - - 1 49");
         REQUIRE(game.perft(1) == 33);
         REQUIRE(game.perft(2) == 99);
         REQUIRE(game.perft(3) == 3285);
         REQUIRE(game.perft(4) == 10085);
         REQUIRE(game.perft(5) == 334392);
+    }
+
+    const std::string p8 = "2r3k1/1q1nbppp/r3p3/3pP3/pPpP4/P1Q2N2/2RN1PPP/2R4K b - b3 0 23";
+    SECTION("Position 8: " + p8) {
+        game.loadFen(p8);
+        REQUIRE(game.perft(1) == 46);
+        REQUIRE(game.perft(2) == 1356);
+        REQUIRE(game.perft(3) == 56661);
+        REQUIRE(game.perft(4) == 1803336);
+    }
+}
+
+TEST_CASE("Zobrist Hashing Quality Tests", "[hashing]") {
+    ChessGame::initConstants();
+    ChessGame::Game game{};
+    game.loadStartingPos();
+
+    SECTION("Avalanche Effect: Single move should flip ~32 bits") {
+        const int iterations = 10000;
+        double total_bits_flipped = 0;
+
+        for (int i = 0; i < iterations; ++i) {
+            uint64_t hash_before = game.get_hash();
+
+            ChessGame::MoveList moves;
+            game.legal_moves(moves);
+            if (moves.empty()) {
+                game.loadStartingPos();
+                continue;
+            }
+
+            ChessGame::ScoreMove m = moves[i % moves.size()];
+            game.make_move(m.move);
+
+            uint64_t hash_after = game.get_hash();
+            total_bits_flipped += std::popcount(hash_before ^ hash_after);
+
+            game.undo_move(m.move);
+        }
+
+        double average_flips = total_bits_flipped / iterations;
+
+        // The expected value is 32. We allow a small margin for statistical noise.
+        REQUIRE_THAT(average_flips, Catch::Matchers::WithinAbs(32.0, 1.0));
+    }
+
+    SECTION("Bit Bias: Every bit should be set ~50% of the time") {
+        const int iterations = 20000;
+        std::vector<int> bit_counts(64, 0);
+
+        for (int i = 0; i < iterations; ++i) {
+
+            // Use a random walk to get diverse positions
+            ChessGame::MoveList moves;
+            game.legal_moves(moves);
+            if (moves.empty()) {
+                game.loadStartingPos();
+                game.legal_moves(moves);
+            }
+            auto move = moves[rand() % moves.size()].move;
+            game.make_move(move);
+            game.undoStack.clear();
+            game.history.clear();
+
+            uint64_t h = game.get_hash();
+            for (int bit = 0; bit < 64; ++bit) {
+                if ((h >> bit) & 1)
+                    bit_counts[bit]++;
+            }
+        }
+
+        for (int bit = 0; bit < 64; ++bit) {
+            double probability = (double)bit_counts[bit] / iterations;
+            // Every bit should be 1 roughly 50% of the time
+            CHECK_THAT(probability, Catch::Matchers::WithinAbs(0.5, 0.05));
+        }
+    }
+
+    SECTION("Collision Resistance: No collisions in random walk") {
+        std::unordered_map<uint64_t, std::string> seen_hashes;
+        const int positions_to_check = 100000;
+        int collisions = 0;
+
+        for (int i = 0; i < positions_to_check; ++i) {
+            ChessGame::MoveList moves;
+            game.legal_moves(moves);
+
+            if (moves.empty() || i % 100 == 0) {
+                moves.clear();
+                game.loadStartingPos();
+                game.legal_moves(moves);
+            }
+
+            game.make_move(moves[rand() % moves.size()].move);
+
+            uint64_t h = game.get_hash();
+            std::string fen = game.dumpFen();
+
+            if (seen_hashes.contains(h)) {
+                if (seen_hashes[h] != fen) {
+                    collisions++;
+                }
+            } else {
+                seen_hashes[h] = fen;
+            }
+        }
+
+        // In a 64-bit space, finding 1 collision in 100k positions
+        // is effectively impossible with a good hash.
+        CHECK(collisions == 0);
     }
 }
