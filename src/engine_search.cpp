@@ -217,6 +217,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         ctx.stop = true;
     }
 
+    // check for draw
     if (game.halfmove >= 100 || game.is_repetition_draw()) {
         return 0;
     }
@@ -225,6 +226,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         return quiescence(ctx, game, alpha, beta);
     }
 
+    // null move
     if (allowNullMove && depth >= 3 && !game.is_check(game.color) &&
         game.has_non_pawn_material(game.color)) {
         constexpr int R = 2;
@@ -245,6 +247,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     game.pseudo_legal_moves(moves);
     score_moves(ctx, game, moves);
 
+    // Transposition Table move first
     TableEntry &entry = ctx.table->table[entryIdx];
     uint16_t entryDepth = entry.depth;
     if (entry.type != NodeType::NONE && entry.hash == game.hash) {
@@ -261,16 +264,18 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     }
 
     ctx.ply++;
+
+    // killer moves
     for (uint8_t i = 0; i < 2; i++) {
         set_move_score(moves, ctx.killers[ctx.ply][i], mate / 2 - i);
     }
-    sort_moves(moves);
 
     int32_t bestScore = -max_value;
     int32_t origAlpha = alpha;
 
-    bool legalMove = false;
+    uint8_t legalMoves = 0;
 
+    sort_moves(moves);
     for (uint8_t i = 0; i < moves.size(); i++) {
         ChessGame::Move move = moves[i].move;
 
@@ -281,15 +286,15 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         }
 
         Score score;
-        if (!legalMove) {
+        if (legalMoves == 0) {
             score = -search(ctx, game, -beta, -alpha, depth - 1, true);
-            legalMove = true;
         } else {
             score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, true);
             if (score > alpha && score < beta) {
                 score = -search(ctx, game, -beta, -alpha, depth - 1, true);
             }
         }
+        legalMoves++;
 
         game.undo_move(move);
         if (score > bestScore) {
@@ -302,12 +307,15 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
 
         if (score >= beta) {
             if (!move.is_capture()) {
-                if (legalMove && move != ctx.killers[ctx.ply][0]) {
+                // update killer moves
+                if (legalMoves > 1) {
                     ctx.killers[ctx.ply][1] = ctx.killers[ctx.ply][0];
                     ctx.killers[ctx.ply][0] = move;
                 }
+
+                // update history heuristic
                 update_history(ctx, game.color, move.from, move.to, depth * depth);
-                for (uint8_t j = 0; j < i; i++) {
+                for (uint8_t j = 0; j < i; j++) {
                     if (moves[j].move.is_capture()) {
                         continue;
                     }
@@ -320,7 +328,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
 
     ctx.ply--;
 
-    if (!legalMove) {
+    if (legalMoves == 0) {
         if (game.is_check(game.color)) {
             bestScore = -mate + ctx.ply;
         } else {
