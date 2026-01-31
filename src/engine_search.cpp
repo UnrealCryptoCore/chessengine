@@ -48,9 +48,7 @@ uint32_t TranspositionTable::hashFull() const {
     return count * 1000 / table.size();
 }
 
-void TranspositionTable::clear() {
-    memset(&table[0], 0, sizeof(TableEntry) * table.size());
-}
+void TranspositionTable::clear() { memset(&table[0], 0, sizeof(TableEntry) * table.size()); }
 
 void SearchContext::reset() {
     thinkingTime = 0;
@@ -266,14 +264,15 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     for (uint8_t i = 0; i < 2; i++) {
         set_move_score(moves, ctx.killers[ctx.ply][i], mate / 2 - i);
     }
+    sort_moves(moves);
 
     int32_t bestScore = -max_value;
     int32_t origAlpha = alpha;
 
     bool legalMove = false;
 
-    while (moves.size() > 0) {
-        ChessGame::Move move = find_next_rm(game, moves).move;
+    for (uint8_t i = 0; i < moves.size(); i++) {
+        ChessGame::Move move = moves[i].move;
 
         game.make_move(move);
         if (game.is_check(!game.color)) {
@@ -308,6 +307,12 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
                     ctx.killers[ctx.ply][0] = move;
                 }
                 update_history(ctx, game.color, move.from, move.to, depth * depth);
+                for (uint8_t j = 0; j < i; i++) {
+                    if (moves[j].move.is_capture()) {
+                        continue;
+                    }
+                    update_history(ctx, game.color, move.from, move.to, -depth * depth);
+                }
             }
             break;
         }
@@ -341,8 +346,8 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
         push_move_to_front(ctx.moves, entry.best);
     }
 
-    int32_t bestScore = -max_value;
-    int32_t origAlpha = alpha;
+    Score bestScore = -max_value;
+    Score origAlpha = alpha;
 
     for (uint8_t i = 0; i < ctx.moves.size(); i++) {
         ChessGame::ScoreMove &move = ctx.moves[i];
@@ -374,7 +379,7 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
         }
     }
 
-    //update_history(ctx, !game.color, bestMove.from, bestMove.to, depth * depth);
+    update_history(ctx, !game.color, bestMove.from, bestMove.to, depth * depth);
 
     if (!ctx.stop) {
         entry.score = bestScore;
@@ -383,7 +388,6 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
         entry.hash = game.hash;
         entry.type = NodeType::EXACT;
     }
-    // update_TT(ctx, game, entryIdx, depth, bestMove, bestScore, origAlpha, beta);
     return bestScore;
 }
 
