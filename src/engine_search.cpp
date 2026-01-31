@@ -86,14 +86,18 @@ bool SearchContext::timeUp() const {
 }
 
 Score score_move(SearchContext &ctx, ChessGame::Game &game, ChessGame::Move move) {
+    Score score = 0;
     if (move.promote != ChessGame::Piece::NONE) {
-        return ChessGame::Evaluation::pieceValues[(uint8_t)move.promote] * 10;
+        score += ChessGame::Evaluation::pieceValues[uint8_t(move.promote)] * 10;
     }
-    uint8_t own = (uint8_t)ChessGame::piece_from_piece(game.board[move.from]);
+    uint8_t own = uint8_t(ChessGame::piece_from_piece(game.board[move.from]));
     if (move.flags == ChessGame::MoveType::MOVE_CAPTURE) {
-        uint8_t enemy = (uint8_t)ChessGame::piece_from_piece(game.board[move.to]);
-        return ChessGame::Evaluation::pieceValues[enemy] * 10 -
-               ChessGame::Evaluation::pieceValues[own];
+        uint8_t enemy = uint8_t(ChessGame::piece_from_piece(game.board[move.to]));
+        score += ChessGame::Evaluation::pieceValues[enemy] * 10 -
+                 ChessGame::Evaluation::pieceValues[own];
+    }
+    if (score != 0) {
+        return score;
     }
 
     return ctx.history[game.color][move.from][move.to];
@@ -421,8 +425,8 @@ Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score b
         ctx.stop = true;
     }
 
-    Score static_eval = ChessGame::signedColor[game.color] * ChessGame::Evaluation::tapered_eval(game);
-    //Score static_eval = ChessGame::signedColor[game.color] * ChessGame::Evaluation::evaluate(game);
+    Score static_eval =
+        ChessGame::signedColor[game.color] * ChessGame::Evaluation::tapered_eval(game);
     Score best_value = static_eval;
     if (best_value > beta) {
         return best_value;
@@ -432,7 +436,6 @@ Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score b
     }
 
     ChessGame::MoveList moves;
-    //game.pseudo_legal_moves(moves);
     game.pseudo_legal_captures(moves);
     score_moves(ctx, game, moves);
 
