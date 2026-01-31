@@ -285,25 +285,35 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
             continue;
         }
 
+        int8_t reduction = 0;
         Score score;
         if (legalMoves == 0) {
             score = -search(ctx, game, -beta, -alpha, depth - 1, true);
         } else {
-            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, true);
+            if (depth >= 3 && legalMoves >= 3 && !move.is_capture() && !game.is_check(game.color) &&
+                ctx.history[!game.color][move.from][move.to] < 0) {
+                reduction = 1;
+            }
+            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1 - reduction, true);
+            if (score > alpha && reduction > 0) {
+                score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, true);
+            }
             if (score > alpha && score < beta) {
                 score = -search(ctx, game, -beta, -alpha, depth - 1, true);
             }
         }
-        legalMoves++;
 
-        game.undo_move(move);
+        if (score > alpha) {
+            alpha = score;
+        }
+
         if (score > bestScore) {
             bestScore = score;
             bestMove = move;
         }
-        if (score > alpha) {
-            alpha = score;
-        }
+
+        game.undo_move(move);
+        legalMoves++;
 
         if (score >= beta) {
             if (!move.is_capture()) {
@@ -316,10 +326,11 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
                 // update history heuristic
                 update_history(ctx, game.color, move.from, move.to, depth * depth);
                 for (uint8_t j = 0; j < i; j++) {
-                    if (moves[j].move.is_capture()) {
+                    ChessGame::Move quietMove = moves[j].move;
+                    if (quietMove.is_capture()) {
                         continue;
                     }
-                    update_history(ctx, game.color, move.from, move.to, -depth * depth);
+                    update_history(ctx, game.color, quietMove.from, quietMove.to, -depth * depth);
                 }
             }
             break;
