@@ -218,7 +218,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     }
 
     // check for draw
-    if (game.halfmove >= 100 || game.is_repetition_draw()) {
+    if (game.is_draw()) {
         return 0;
     }
 

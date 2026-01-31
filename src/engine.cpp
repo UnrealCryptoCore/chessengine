@@ -182,14 +182,26 @@ struct IO {
     static bool recv(std::string &s) { return static_cast<bool>(std::getline(std::cin, s)); }
 };
 
-void calculate_pv_moves(UciGame &game, std::vector<ChessGame::Move> moves) {
+void calculate_pv_moves(UciGame &game, std::vector<ChessGame::Move> &moves, int8_t depth) {
     auto move = moves.back();
     game.game.make_move(move);
-    Search::TableEntry &entry = game.ctx.table->get(game.game.hash);
-    if (entry.hash == game.game.hash) {
-        moves.push_back(entry.best);
-        calculate_pv_moves(game, moves);
+
+    if (game.game.is_draw()) {
+        game.game.undo_move(move);
+        return;
     }
+
+    Search::TableEntry &entry = game.ctx.table->get(game.game.hash);
+    if (entry.hash != game.game.hash) {
+        game.game.undo_move(move);
+        return;
+    }
+
+    moves.push_back(entry.best);
+    if (depth > 0) {
+        calculate_pv_moves(game, moves, depth - 1);
+    }
+
     game.game.undo_move(move);
 }
 
@@ -211,10 +223,9 @@ Search::SearchResult iterative_deepening(UciGame &game, uint32_t depth) {
         ChessGame::ScoreMove bestMove = game.ctx.moves[0];
 
         auto end = std::chrono::steady_clock::now();
-        auto elapsed =
-            std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
         std::vector<ChessGame::Move> pvs{game.ctx.moves[0].move};
-        // calculate_pv_moves(game, pvs);
+        calculate_pv_moves(game, pvs, i);
         Search::SearchResult result{
             .score = bestMove.score,
             .bestMove = bestMove.move,

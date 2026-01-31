@@ -15,13 +15,6 @@
 
 namespace ChessGame {
 
-uint64_t splitmix64(uint64_t &state) {
-    uint64_t z = (state += 0x9E3779B97f4A7C15ULL);
-    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
-    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
-    return z ^ (z >> 31);
-}
-
 uint64_t reverse_bits(uint64_t x) {
     x = ((x & 0x5555555555555555ull) << 1) | ((x >> 1) & 0x5555555555555555ull);
     x = ((x & 0x3333333333333333ull) << 2) | ((x >> 2) & 0x3333333333333333ull);
@@ -167,7 +160,7 @@ void Game::reset() {
     }
     undoStack.clear();
     history.clear();
-    hash = calculateHash();
+    hash = get_hash();
 }
 
 void Game::calculateOccupancy() {
@@ -425,6 +418,10 @@ bool Game::isSqaureAttacked(Position pos, uint8_t enemy) {
     return false;
 }
 
+bool Game::is_draw() {
+    return halfmove >= 100 || is_repetition_draw();
+}
+
 bool Game::is_repetition_draw() {
     for (uint16_t i = 2; i < halfmove; i += 2) {
         if (history[history.size() - 1 - i] == hash) {
@@ -617,6 +614,7 @@ uint32_t Game::perft(uint32_t n) {
     uint32_t counter = 0;
     MoveList moves;
     pseudo_legal_moves(moves);
+    assert(get_hash() == hash);
     for (auto move : moves) {
         make_move(move.move);
         if (is_check(!color)) {
@@ -666,7 +664,7 @@ void Game::playMove(std::string &move) {
     make_move(m);
 }
 
-uint64_t Game::calculateHash() {
+uint64_t Game::get_hash() {
     uint64_t hash = 0;
     for (Position pos = 0; pos < 64; pos++) {
         uint8_t p = board[pos];
@@ -772,7 +770,7 @@ void Game::loadFen(std::stringstream &ss) {
     halfmove = std::stoi(fenHalfMoves);
     fullmoves = std::stoi(fenFullMoves);
 
-    hash = calculateHash();
+    hash = get_hash();
 }
 
 std::string Game::dumpFen() {
@@ -999,6 +997,13 @@ void initKingMoves() {
 void initRookMoves() {}
 
 void initBishopMoves() {}
+
+uint64_t splitmix64(uint64_t &state) {
+    uint64_t z = (state += 0x9E3779B97f4A7C15ULL);
+    z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9ULL;
+    z = (z ^ (z >> 27)) * 0x94D049BB133111EBULL;
+    return z ^ (z >> 31);
+}
 
 void initZobrist() {
     uint64_t seed = 1337;

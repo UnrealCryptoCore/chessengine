@@ -212,6 +212,14 @@ template <typename T, std::size_t N> struct StackList {
 
     size_t size() const { return count; }
     void resize(size_t size) { count = size; }
+    bool contains(T item) {
+        for (uint16_t i=0; i < count; i++) {
+            if (item == stack[i]) {
+                return true;
+            }
+        }
+        return false;
+    }
 
     void clear() { count = 0; }
     bool empty() { return count == 0; }
@@ -254,6 +262,7 @@ struct Game {
     bool isSqaureAttacked(Position pos, uint8_t color);
     Position get_lva(BitBoard attackers, uint8_t color);
     BitBoard squareAttackers(Position pos, uint8_t color);
+    bool is_draw();
     bool is_repetition_draw();
     bool has_non_pawn_material(uint8_t color);
     bool is_valid_move(Move move);
@@ -269,7 +278,7 @@ struct Game {
     void make_null_move();
     void undo_null_move();
     uint32_t perft(uint32_t n);
-    uint64_t calculateHash();
+    uint64_t get_hash();
     void fromSimpleBoard();
     bool isConsistent();
     void loadFen(const std::string &fen);
