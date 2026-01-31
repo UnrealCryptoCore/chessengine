@@ -421,7 +421,8 @@ Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score b
         ctx.stop = true;
     }
 
-    Score static_eval = ChessGame::signedColor[game.color] * ChessGame::Evaluation::evaluate(game);
+    Score static_eval = ChessGame::signedColor[game.color] * ChessGame::Evaluation::tapered_eval(game);
+    //Score static_eval = ChessGame::signedColor[game.color] * ChessGame::Evaluation::evaluate(game);
     Score best_value = static_eval;
     if (best_value > beta) {
         return best_value;
