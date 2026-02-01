@@ -204,7 +204,7 @@ void inline update_TT(uint64_t hash, SearchContext &ctx, uint32_t depth, ChessGa
 }
 
 Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth,
-             bool allowNullMove) {
+             int32_t ply, bool allowNullMove) {
     ctx.nodes++;
 
     if (ctx.stop) {
@@ -231,7 +231,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         constexpr int R = 2;
 
         game.make_null_move();
-        Score score = -search(ctx, game, -beta, -beta + 1, depth - 1 - R, false);
+        Score score = -search(ctx, game, -beta, -beta + 1, depth - 1 - R, ply, false);
         game.undo_null_move();
 
         if (score >= beta) {
@@ -239,15 +239,8 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         }
     }
 
-    uint64_t entryIdx = game.hash & (ctx.table->size() - 1);
-    ChessGame::Move bestMove{};
-    ChessGame::MoveList moves;
-
-    game.pseudo_legal_moves(moves);
-    score_moves(ctx, game, moves);
-
     // Transposition Table move first
-    TableEntry &entry = ctx.table->table[entryIdx];
+    TableEntry &entry = ctx.table->get(game.hash);
     uint16_t entryDepth = entry.depth;
     if (entry.type != NodeType::NONE && entry.hash == game.hash) {
         if (entry.depth >= depth) {
@@ -259,14 +252,21 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
                 return entry.score;
             }
         }
-        set_move_score(moves, entry.best, mate);
     }
 
-    ctx.ply++;
+    ChessGame::Move bestMove{};
+    ChessGame::MoveList moves;
+
+    game.pseudo_legal_moves(moves);
+    score_moves(ctx, game, moves);
 
     // killer moves
     for (uint8_t i = 0; i < 2; i++) {
-        set_move_score(moves, ctx.killers[ctx.ply][i], mate / 2 - i);
+        set_move_score(moves, ctx.killers[ply][i], mate / 2 - i);
+    }
+
+    if (entry.type != NodeType::NONE && entry.hash == game.hash) {
+        set_move_score(moves, entry.best, mate);
     }
 
     int32_t bestScore = -max_value;
@@ -287,18 +287,18 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         int8_t reduction = 0;
         Score score;
         if (legalMoves == 0) {
-            score = -search(ctx, game, -beta, -alpha, depth - 1, true);
+            score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
         } else {
             if (depth >= 3 && legalMoves >= 3 && !check && !move.is_capture() &&
                 ctx.history[!game.color][move.from][move.to] < 0) {
                 reduction = 1;
             }
-            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1 - reduction, true);
+            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1 - reduction, ply + 1, true);
             if (score > alpha && reduction > 0) {
-                score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, true);
+                score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, ply + 1, true);
             }
             if (score > alpha && score < beta) {
-                score = -search(ctx, game, -beta, -alpha, depth - 1, true);
+                score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
             }
         }
 
@@ -319,8 +319,8 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
             if (!move.is_capture()) {
                 // update killer moves
                 if (legalMoves > 1) {
-                    ctx.killers[ctx.ply][1] = ctx.killers[ctx.ply][0];
-                    ctx.killers[ctx.ply][0] = move;
+                    ctx.killers[ply][1] = ctx.killers[ply][0];
+                    ctx.killers[ply][0] = move;
                 }
 
                 // update history heuristic
@@ -338,11 +338,9 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         }
     }
 
-    ctx.ply--;
-
     if (legalMoves == 0) {
         if (check) {
-            bestScore = -mate + ctx.ply;
+            bestScore = -mate + ply;
         } else {
             bestScore = 0;
         }
@@ -354,7 +352,6 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
 }
 
 Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
-    ctx.ply = 1;
     ctx.nodes++;
     Score alpha = -mate;
     Score beta = mate;
@@ -375,11 +372,11 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
 
         Score score;
         if (i == 0) {
-            score = -search(ctx, game, -mate, mate, depth - 1, true);
+            score = -search(ctx, game, -mate, mate, depth - 1, 1, true);
         } else {
-            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, true);
+            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, 1, true);
             if (score > alpha && score < beta) {
-                score = -search(ctx, game, -mate, mate, depth - 1, true);
+                score = -search(ctx, game, -mate, mate, depth - 1, 1, true);
             }
         }
 

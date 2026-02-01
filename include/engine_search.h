@@ -92,9 +92,7 @@ Score simpleMinimax(ChessGame::Game &game, int32_t depth);
 
 Score simpleAlphaBeta(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
 
-Score search(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
-
-Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth, bool allowNullMove);
+Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth, int32_t ply, bool allowNullMove);
 
 Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score beta);
 
