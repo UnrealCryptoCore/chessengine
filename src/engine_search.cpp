@@ -249,8 +249,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     ChessGame::Move bestMove{};
 
     // Transposition Table move first
-    TableEntry &entry = ctx.table->get(game.hash);
-    uint16_t entryDepth = entry.depth;
+    TableEntry entry = ctx.table->get(game.hash);
     if (bool(entry.depth) && entry.hash == game.hash) {
         NodeType type = entry.type();
         if (entry.depth >= depth) {
@@ -264,20 +263,20 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         }
 
         if (game.is_pseudo_legal(entry.best)) {
-            bestMove = entry.best;
-            game.make_move(bestMove);
+            game.make_move(entry.best);
             if (!game.is_check(!game.color)) {
                 bestScore = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
-                legalMoves++;
                 if (bestScore >= beta) {
-                    game.undo_move(bestMove);
-                    update_TT(game.hash, ctx, depth, bestMove, bestScore, NodeType::LOWER_BOUND);
+                    game.undo_move(entry.best);
+                    update_TT(game.hash, ctx, depth, entry.best, bestScore, NodeType::LOWER_BOUND);
                     return bestScore;
                 }
                 if (bestScore > alpha) {
                     alpha = bestScore;
                     flag = NodeType::EXACT;
                 }
+                bestMove = entry.best;
+                legalMoves++;
             }
             game.undo_move(bestMove);
         }
@@ -347,9 +346,16 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
 
                 // update history heuristic
                 update_history(ctx, game.color, move.from, move.to, depth * depth);
+                // penalize other quiet moves
                 for (uint8_t j = 0; j < i; j++) {
                     ChessGame::Move quietMove = moves[j].move;
                     if (quietMove.is_capture()) {
+                        continue;
+                    }
+                    if (quietMove == entry.best) {
+                        continue;
+                    }
+                    if (quietMove == ctx.killers[ply][0] || quietMove == ctx.killers[ply][1]) {
                         continue;
                     }
                     update_history(ctx, game.color, quietMove.from, quietMove.to, -depth * depth);
