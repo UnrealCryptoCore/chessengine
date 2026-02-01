@@ -191,21 +191,15 @@ void update_history(SearchContext &ctx, uint8_t color, ChessGame::Position from,
         clampedBonus - ctx.history[color][from][to] * std::abs(clampedBonus) / max_history;
 }
 
-void inline update_TT(SearchContext &ctx, ChessGame::Game &game, uint32_t entryIdx, uint32_t depth,
-                      ChessGame::Move bestMove, Score bestScore, Score alpha, Score beta) {
-    TableEntry &entry = ctx.table->table[entryIdx];
+void inline update_TT(uint64_t hash, SearchContext &ctx, uint32_t depth, ChessGame::Move bestMove,
+                      Score bestScore, NodeType flag) {
+    TableEntry &entry = ctx.table->get(hash);
     if (depth >= entry.depth && !ctx.stop) {
         entry.score = bestScore;
         entry.best = bestMove;
         entry.depth = depth;
-        entry.hash = game.hash;
-        if (bestScore <= alpha) {
-            entry.type = NodeType::UPPER_BOUND;
-        } else if (bestScore >= beta) {
-            entry.type = NodeType::LOWER_BOUND;
-        } else {
-            entry.type = NodeType::EXACT;
-        }
+        entry.hash = hash;
+        entry.type = flag;
     }
 }
 
@@ -277,8 +271,8 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
 
     int32_t bestScore = -max_value;
     int32_t origAlpha = alpha;
-
     uint8_t legalMoves = 0;
+    NodeType flag = NodeType::UPPER_BOUND;
 
     sort_moves(moves);
     for (uint8_t i = 0; i < moves.size(); i++) {
@@ -310,6 +304,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
 
         if (score > alpha) {
             alpha = score;
+            flag = NodeType::EXACT;
         }
 
         if (score > bestScore) {
@@ -338,6 +333,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
                     update_history(ctx, game.color, quietMove.from, quietMove.to, -depth * depth);
                 }
             }
+            flag = NodeType::LOWER_BOUND;
             break;
         }
     }
@@ -353,7 +349,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         return bestScore;
     }
 
-    update_TT(ctx, game, entryIdx, depth, bestMove, bestScore, origAlpha, beta);
+    update_TT(game.hash, ctx, depth, bestMove, bestScore, flag);
     return bestScore;
 }
 

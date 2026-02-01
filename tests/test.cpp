@@ -44,23 +44,26 @@ TEST_CASE("Computing valid positions", "[perft]") {
         REQUIRE(game.perft(4) == 422333);
     }
 
-    SECTION("Position 5: rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8") {
-        game.loadFen("rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
+    const std::string p5 = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
+    SECTION("Position 5: " + p5) {
+        game.loadFen(p5);
         REQUIRE(game.perft(1) == 44);
         REQUIRE(game.perft(2) == 1486);
         REQUIRE(game.perft(3) == 62379);
     }
 
-    SECTION(
-        "Position 6: r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10") {
-        game.loadFen("r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10");
+    const std::string p6 =
+        "r4rk1/1pp1qppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP1QPPP/R4RK1 w - - 0 10";
+    SECTION("Position 6: " + p6) {
+        game.loadFen(p6);
         REQUIRE(game.perft(1) == 46);
         REQUIRE(game.perft(2) == 2079);
         REQUIRE(game.perft(3) == 89890);
     }
 
-    SECTION("Position 7: 8/Q1p5/8/6P1/Pk2B3/7P/KP1P3P/R1B5 w - - 1 49") {
-        game.loadFen("8/Q1p5/8/6P1/Pk2B3/7P/KP1P3P/R1B5 w - - 1 49");
+    const std::string p7 = "8/Q1p5/8/6P1/Pk2B3/7P/KP1P3P/R1B5 w - - 1 49";
+    SECTION("Position 7: " + p7) {
+        game.loadFen(p7);
         REQUIRE(game.perft(1) == 33);
         REQUIRE(game.perft(2) == 99);
         REQUIRE(game.perft(3) == 3285);
