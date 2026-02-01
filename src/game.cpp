@@ -240,6 +240,26 @@ void Game::generate_rook_captures(Position pos, MoveList &moves) {
     }
 }
 
+void Game::generate_king_moves(Position pos, MoveList &moves) {
+    valid_bit_mask_moves(pos, moves, kingMoves);
+    MoveType flags = MoveType::MOVE_CASTLE;
+    for (uint8_t side = 0; side < 2; side++) {
+        if (castling & castlingMask[color][side] &&
+            (castlingPathMasks[color][side] & occupancyBoth) == 0) {
+            bool pathAttack = false;
+            for (Position pos : BitRange{castlingCheckMasks[color][side]}) {
+                if (is_sqaure_attacked(pos, !color)) {
+                    pathAttack = true;
+                    break;
+                }
+            }
+            if (!pathAttack) {
+                moves.push_back(ScoreMove{{pos, castlingKingMoves[color][side], flags}});
+            }
+        }
+    }
+}
+
 void Game::generate_rook_moves(Position pos, MoveList &moves) {
     BitBoard attacks = rookAttacks(pos);
     attacks &= ~occupancy[color];
@@ -357,10 +377,44 @@ void Game::valid_bit_mask_moves(Position pos, MoveList &moves, std::array<BitBoa
 
 bool Game::is_pseudo_legal(Move move) {
     uint8_t p = board[move.from];
-    if (color_from_piece(p) != color) {
+    Piece piece = piece_from_piece(p);
+    uint8_t c = color_from_piece(p);
+    if (c != color) {
         return false;
     }
-    return true;
+
+    MoveList moves{};
+    switch (piece) {
+    case ChessGame::Piece::KING:
+        generate_king_moves(move.from, moves);
+        break;
+    case ChessGame::Piece::QUEEN:
+        generate_rook_moves(move.from, moves);
+        generate_bishop_moves(move.from, moves);
+        break;
+    case ChessGame::Piece::ROOK:
+        generate_rook_moves(move.from, moves);
+        break;
+    case ChessGame::Piece::BISHOP:
+        generate_bishop_moves(move.from, moves);
+        break;
+    case ChessGame::Piece::KNIGHT:
+        valid_bit_mask_moves(move.from, moves, knightMoves);
+        break;
+    case ChessGame::Piece::PAWN:
+        generate_pawn_moves(move.from, moves);
+        break;
+    default:
+        return false;
+    }
+
+    for (ScoreMove valid : moves) {
+        if (move == valid.move) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void Game::pseudo_legal_captures(MoveList &moves) {
@@ -409,23 +463,7 @@ void Game::pseudo_legal_moves(MoveList &moves) {
 
     BitBoard kings = bitboard[color][(uint8_t)Piece::KING];
     for (Position pos : BitRange{kings}) {
-        valid_bit_mask_moves(pos, moves, kingMoves);
-        MoveType flags = MoveType::MOVE_CASTLE;
-        for (uint8_t side = 0; side < 2; side++) {
-            if (castling & castlingMask[color][side] &&
-                (castlingPathMasks[color][side] & occupancyBoth) == 0) {
-                bool pathAttack = false;
-                for (Position pos : BitRange{castlingCheckMasks[color][side]}) {
-                    if (is_sqaure_attacked(pos, !color)) {
-                        pathAttack = true;
-                        break;
-                    }
-                }
-                if (!pathAttack) {
-                    moves.push_back(ScoreMove{{pos, castlingKingMoves[color][side], flags}});
-                }
-            }
-        }
+        generate_king_moves(pos, moves);
     }
 
     BitBoard rooks = bitboard[color][(uint8_t)Piece::ROOK];

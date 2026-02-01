@@ -255,6 +255,8 @@ struct Game {
     BitBoard attackBoard(BitBoard p, BitBoard mask);
     BitBoard rookAttacks(Position pos);
     BitBoard bishopAttacks(Position pos);
+    void generate_king_captures(Position pos, MoveList &moves);
+    void generate_king_moves(Position pos, MoveList &moves);
     void generate_rook_moves(Position pos, MoveList &moves);
     void generate_rook_captures(Position pos, MoveList &moves);
     void generate_bishop_captures(Position pos, MoveList &moves);

@@ -197,6 +197,10 @@ void calculate_pv_moves(UciGame &game, std::vector<ChessGame::Move> &moves, int8
         return;
     }
 
+    if (!game.game.is_pseudo_legal(entry.best)) {
+        return;
+    }
+
     moves.push_back(entry.best);
     if (depth > 0) {
         calculate_pv_moves(game, moves, depth - 1);

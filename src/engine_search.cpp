@@ -239,10 +239,16 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         }
     }
 
+    int32_t origAlpha = alpha;
+    NodeType flag = NodeType::UPPER_BOUND;
+    int32_t bestScore = -max_value;
+    uint8_t legalMoves = 0;
+    ChessGame::Move bestMove{};
+
     // Transposition Table move first
     TableEntry &entry = ctx.table->get(game.hash);
     uint16_t entryDepth = entry.depth;
-    if (entry.type != NodeType::NONE && entry.hash == game.hash) {
+    if (bool(entry.depth) && entry.hash == game.hash) {
         if (entry.depth >= depth) {
             if (entry.type == NodeType::EXACT) {
                 return entry.score;
@@ -252,9 +258,27 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
                 return entry.score;
             }
         }
+
+        if (game.is_pseudo_legal(entry.best)) {
+            bestMove = entry.best;
+            game.make_move(bestMove);
+            if (!game.is_check(!game.color)) {
+                bestScore = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
+                legalMoves++;
+                if (bestScore >= beta) {
+                    game.undo_move(bestMove);
+                    update_TT(game.hash, ctx, depth, bestMove, bestScore, NodeType::LOWER_BOUND);
+                    return bestScore;
+                }
+                if (bestScore > alpha) {
+                    alpha = bestScore;
+                    flag = NodeType::EXACT;
+                }
+            }
+            game.undo_move(bestMove);
+        }
     }
 
-    ChessGame::Move bestMove{};
     ChessGame::MoveList moves;
 
     game.pseudo_legal_moves(moves);
@@ -265,18 +289,12 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         set_move_score(moves, ctx.killers[ply][i], mate / 2 - i);
     }
 
-    if (entry.type != NodeType::NONE && entry.hash == game.hash) {
-        set_move_score(moves, entry.best, mate);
-    }
-
-    int32_t bestScore = -max_value;
-    int32_t origAlpha = alpha;
-    uint8_t legalMoves = 0;
-    NodeType flag = NodeType::UPPER_BOUND;
-
     sort_moves(moves);
     for (uint8_t i = 0; i < moves.size(); i++) {
         ChessGame::Move move = moves[i].move;
+        if (move == entry.best) {
+            continue;
+        }
 
         game.make_move(move);
         if (game.is_check(!game.color)) {
