@@ -13,21 +13,6 @@ namespace Search {
 
 bool is_mate(Score score) { return score > mate_threshold || score < -mate_threshold; }
 
-Score see(ChessGame::Game &game, ChessGame::Position pos, uint8_t color) {
-    Score gain[64];
-    int32_t value = 0;
-    ChessGame::BitBoard attackers[2];
-    attackers[WHITE] = game.squareAttackers(pos, BLACK);
-    attackers[BLACK] = game.squareAttackers(pos, WHITE);
-    uint8_t side = color;
-    while (1) {
-        ChessGame::BitBoard attack = attackers[color];
-        ChessGame::Position from = game.get_lva(attackers[side], side);
-    }
-
-    return value;
-}
-
 void TranspositionTable::setsize(uint32_t mb) {
     size_t entries = (1014 * 1024 * mb) / sizeof(TableEntry);
     size_t pow2 = 1;
@@ -87,16 +72,21 @@ bool SearchContext::timeUp() const {
 
 Score score_move(SearchContext &ctx, ChessGame::Game &game, ChessGame::Move move) {
     Score score = 0;
-    if (move.promote != ChessGame::Piece::NONE) {
-        score += ChessGame::Evaluation::pieceValues[uint8_t(move.promote)] * 10;
+    if (move.promote == ChessGame::Piece::QUEEN) {
+        score = 20000;
+    } else if (move.promote != ChessGame::Piece::NONE) {
+        score = 13000;
     }
+
     if (move.flags == ChessGame::MoveType::MOVE_CAPTURE) {
-        uint8_t own = uint8_t(ChessGame::piece_from_piece(game.board[move.from]));
-        uint8_t enemy = uint8_t(ChessGame::piece_from_piece(game.board[move.to]));
-        return ChessGame::Evaluation::pieceValues[enemy] * 10 -
-               ChessGame::Evaluation::pieceValues[own] + score;
+        Score see = game.see(move.from, move.to, game.color);
+        if (see >= 0) {
+            return 16000 + see + score;
+        } else {
+            return 16000 - see + score;
+        }
     }
-    if (score != 0) {
+    if (score > 0) {
         return score;
     }
 

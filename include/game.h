@@ -109,7 +109,9 @@ inline uint8_t color_from_piece(uint8_t piece) { return (piece & PIECE_COLOR_MAS
 
 inline Piece piece_from_piece(uint8_t piece) { return (Piece)(piece & (~PIECE_COLOR_MASK)); }
 
-inline uint8_t to_piece(Piece piece, uint8_t color) { return (color * PIECE_COLOR_MASK) | (uint8_t)piece; }
+inline uint8_t to_piece(Piece piece, uint8_t color) {
+    return (color * PIECE_COLOR_MASK) | (uint8_t)piece;
+}
 
 inline uint64_t safe_shift(uint64_t x, uint8_t shift) {
     constexpr unsigned W = 64;
@@ -128,7 +130,8 @@ const std::array<std::array<Position, 2>, 2> castlingRookMovesFrom{
     {{coords_to_pos(0, 0), coords_to_pos(7, 0)}, {coords_to_pos(0, 7), coords_to_pos(7, 7)}}};
 
 const std::array<std::array<uint8_t, 2>, 2> castlingMask{
-    {{CASTLING_QUEEN_MASK_WHITE, CASTLING_KING_MASK_WHITE}, {CASTLING_QUEEN_MASK_BLACK, CASTLING_KING_MASK_BLACK}}};
+    {{CASTLING_QUEEN_MASK_WHITE, CASTLING_KING_MASK_WHITE},
+     {CASTLING_QUEEN_MASK_BLACK, CASTLING_KING_MASK_BLACK}}};
 
 uint64_t reverse_bits(uint64_t x);
 Position str2pos(std::string str);
@@ -174,10 +177,12 @@ struct Move {
     std::string toString() const;
 
     inline bool is_capture() {
-        return uint8_t(flags) & (uint8_t(ChessGame::MoveType::MOVE_CAPTURE) | uint8_t(ChessGame::MoveType::MOVE_EP));
+        return uint8_t(flags) &
+               (uint8_t(ChessGame::MoveType::MOVE_CAPTURE) | uint8_t(ChessGame::MoveType::MOVE_EP));
     }
     inline bool operator==(const Move &other) const {
-        return *reinterpret_cast<const uint32_t *>(this) == *reinterpret_cast<const uint32_t *>(&other);
+        return *reinterpret_cast<const uint32_t *>(this) ==
+               *reinterpret_cast<const uint32_t *>(&other);
     }
 };
 
@@ -213,7 +218,7 @@ template <typename T, std::size_t N> struct StackList {
     size_t size() const { return count; }
     void resize(size_t size) { count = size; }
     bool contains(T item) {
-        for (uint16_t i=0; i < count; i++) {
+        for (uint16_t i = 0; i < count; i++) {
             if (item == stack[i]) {
                 return true;
             }
@@ -252,9 +257,9 @@ struct Game {
 
     void reset();
     void calculateOccupancy();
-    BitBoard attackBoard(BitBoard p, BitBoard mask);
-    BitBoard rookAttacks(Position pos);
-    BitBoard bishopAttacks(Position pos);
+    BitBoard attackBoard(BitBoard p, BitBoard mask, BitBoard occupancy);
+    BitBoard rookAttacks(Position pos, BitBoard occupancy);
+    BitBoard bishopAttacks(Position pos, BitBoard occupancy);
     void generate_king_captures(Position pos, MoveList &moves);
     void generate_king_moves(Position pos, MoveList &moves);
     void generate_rook_moves(Position pos, MoveList &moves);
@@ -266,8 +271,12 @@ struct Game {
     void valid_bit_mask_moves(Position pos, MoveList &moves, std::array<BitBoard, 64> boards);
     void valid_bit_mask_captures(Position pos, MoveList &moves, std::array<BitBoard, 64> boards);
     bool is_sqaure_attacked(Position pos, uint8_t color);
+    BitBoard get_xray_attackers(Position target, BitBoard from, BitBoard occupancy);
+    uint8_t get_piece_at(Position pos);
     Position get_lva(BitBoard attackers, uint8_t color);
-    BitBoard squareAttackers(Position pos, uint8_t color);
+    BitBoard attacks_to(Position pos, uint8_t color);
+    BitBoard attacks_to(Position pos);
+    int32_t see(Position from, Position target, uint8_t color);
     bool is_draw();
     bool is_repetition_draw();
     bool has_non_pawn_material(uint8_t color);

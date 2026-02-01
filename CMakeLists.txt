@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(ENGINE_VERSION "v0.10.12_history_fix")
+set(ENGINE_VERSION "v0.11.1_see")
 
 add_library(chess_game 
     src/game.cpp

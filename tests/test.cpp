@@ -1,4 +1,5 @@
 #include "game.h"
+#include <algorithm>
 #include <bit>
 #include <cassert>
 #include <catch2/catch_test_macros.hpp>
@@ -78,6 +79,32 @@ TEST_CASE("Computing valid positions", "[perft]") {
         REQUIRE(game.perft(2) == 1356);
         REQUIRE(game.perft(3) == 56661);
         REQUIRE(game.perft(4) == 1803336);
+    }
+}
+
+TEST_CASE("SEE Tests", "[see]") {
+    ChessGame::initConstants();
+    ChessGame::Game game{};
+
+    const std::string p1 = "1k1r4/1pp4p/p7/4p3/8/P5P1/1PP4P/2K1R3 w - - 0 1; Rxe5?";
+    SECTION("Position 1:" + p1) {
+        game.loadFen(p1);
+        int32_t val = game.see(ChessGame::str2pos("e1"), ChessGame::str2pos("e5"), game.color);
+        REQUIRE(val == 100);
+    }
+
+    const std::string p2 = "1k1r3q/1ppn3p/p4b2/4p3/8/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1; Nxe5?";
+    SECTION("Position 2:" + p2) {
+        game.loadFen(p2);
+        int32_t val = game.see(ChessGame::str2pos("d3"), ChessGame::str2pos("e5"), game.color);
+        REQUIRE(val == -220);
+    }
+
+    const std::string p3 = "1k1r3q/1ppn3p/p4b2/4p3/5P2/P2N2P1/1PP1R1BP/2K1Q3 w - - 0 1; Nxe5?";
+    SECTION("Position 3:" + p3) {
+        game.loadFen(p3);
+        int32_t val = game.see(ChessGame::str2pos("d3"), ChessGame::str2pos("e5"), game.color);
+        REQUIRE(val == 100);
     }
 }
 
