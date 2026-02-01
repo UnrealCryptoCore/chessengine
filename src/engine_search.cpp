@@ -41,7 +41,7 @@ void TranspositionTable::setsize(uint32_t mb) {
 uint32_t TranspositionTable::hashFull() const {
     uint64_t count = 0;
     for (auto entry : table) {
-        if (entry.type != NodeType::NONE) {
+        if (bool(entry.depth)) {
             count++;
         }
     }
@@ -59,7 +59,7 @@ void SearchContext::reset() {
 void SearchContext::resetSearch() {
     stop = false;
     nodes = 0;
-    ply = 0;
+    gen = (gen + 1) & gen_mask;
     moves.clear();
     memset(&history[0], 0, sizeof(history));
     // stack.clear();
@@ -193,13 +193,16 @@ void update_history(SearchContext &ctx, uint8_t color, ChessGame::Position from,
 
 void inline update_TT(uint64_t hash, SearchContext &ctx, uint32_t depth, ChessGame::Move bestMove,
                       Score bestScore, NodeType flag) {
+    if (ctx.stop) {
+        return;
+    }
     TableEntry &entry = ctx.table->get(hash);
-    if (depth >= entry.depth && !ctx.stop) {
+    if (depth >= entry.depth || entry.age() != ctx.gen) {
         entry.score = bestScore;
         entry.best = bestMove;
         entry.depth = depth;
         entry.hash = hash;
-        entry.type = flag;
+        entry.gen = uint8_t(flag) | ctx.gen;
     }
 }
 
@@ -249,12 +252,13 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     TableEntry &entry = ctx.table->get(game.hash);
     uint16_t entryDepth = entry.depth;
     if (bool(entry.depth) && entry.hash == game.hash) {
+        NodeType type = entry.type();
         if (entry.depth >= depth) {
-            if (entry.type == NodeType::EXACT) {
+            if (type == NodeType::EXACT) {
                 return entry.score;
-            } else if (entry.type == NodeType::LOWER_BOUND && entry.score >= beta) {
+            } else if (type == NodeType::LOWER_BOUND && entry.score >= beta) {
                 return entry.score;
-            } else if (entry.type == NodeType::UPPER_BOUND && entry.score <= alpha) {
+            } else if (type == NodeType::UPPER_BOUND && entry.score <= alpha) {
                 return entry.score;
             }
         }
@@ -377,7 +381,7 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
     ChessGame::Move bestMove;
 
     TableEntry &entry = ctx.table->table[entryIdx];
-    if (entry.type != NodeType::NONE && entry.hash == game.hash) {
+    if (bool(entry.depth) && entry.hash == game.hash) {
         push_move_to_front(ctx.moves, entry.best);
     }
 
@@ -421,7 +425,7 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
         entry.best = bestMove;
         entry.depth = depth;
         entry.hash = game.hash;
-        entry.type = NodeType::EXACT;
+        entry.gen = (uint8_t(NodeType::EXACT) << node_shift) | ctx.gen;
     }
     return bestScore;
 }

@@ -18,11 +18,14 @@ constexpr Score loss_value = -mate;
 
 constexpr int32_t max_history = 10000;
 
+constexpr uint8_t node_shift = 6;
+constexpr uint8_t gen_mask = 0b00111111;
+constexpr uint8_t node_mask = 0b11000000;
+
 enum class NodeType : uint8_t {
-    NONE = 0,
-    EXACT,
-    UPPER_BOUND,
-    LOWER_BOUND,
+    EXACT = 1 << node_shift,
+    UPPER_BOUND = 2 << node_shift,
+    LOWER_BOUND = 3 << node_shift,
 };
 
 struct TableEntry {
@@ -30,7 +33,11 @@ struct TableEntry {
     ChessGame::Move best;
     Score score;
     uint8_t depth;
-    NodeType type;
+    uint8_t gen;
+
+    inline uint8_t age() const { return gen & gen_mask; }
+
+    inline NodeType type() const { return NodeType(gen & node_mask); }
 };
 
 struct SearchResult {
@@ -68,12 +75,12 @@ struct SearchContext {
     uint64_t thinkingTime = 0;
     uint64_t nodes = 0;
     std::chrono::steady_clock::time_point timeStart;
-    uint32_t ply = 0;
+    uint8_t gen = 0;
     TranspositionTable *table = nullptr;
     std::array<std::array<ChessGame::Move, 2>, max_depth> killers{};
     std::array<std::array<std::array<int32_t, 64>, 64>, 2> history{};
     ChessGame::MoveList moves;
-    //ChessGame::StackList<StackElement, max_depth> stack{};
+    // ChessGame::StackList<StackElement, max_depth> stack{};
 
     void reset();
     void resetSearch();
@@ -92,11 +99,13 @@ Score simpleMinimax(ChessGame::Game &game, int32_t depth);
 
 Score simpleAlphaBeta(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
 
-Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth, int32_t ply, bool allowNullMove);
+Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth,
+             int32_t ply, bool allowNullMove);
 
 Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score beta);
 
-Score test_search_root(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
+Score test_search_root(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta,
+                       int32_t depth);
 
 Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth);
 
