@@ -90,11 +90,11 @@ Score score_move(SearchContext &ctx, ChessGame::Game &game, ChessGame::Move move
     if (move.promote != ChessGame::Piece::NONE) {
         score += ChessGame::Evaluation::pieceValues[uint8_t(move.promote)] * 10;
     }
-    uint8_t own = uint8_t(ChessGame::piece_from_piece(game.board[move.from]));
     if (move.flags == ChessGame::MoveType::MOVE_CAPTURE) {
+        uint8_t own = uint8_t(ChessGame::piece_from_piece(game.board[move.from]));
         uint8_t enemy = uint8_t(ChessGame::piece_from_piece(game.board[move.to]));
-        score += ChessGame::Evaluation::pieceValues[enemy] * 10 -
-                 ChessGame::Evaluation::pieceValues[own];
+        return ChessGame::Evaluation::pieceValues[enemy] * 10 -
+               ChessGame::Evaluation::pieceValues[own] + score;
     }
     if (score != 0) {
         return score;
@@ -230,9 +230,10 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         return quiescence(ctx, game, alpha, beta);
     }
 
+    bool check = game.is_check(game.color);
+
     // null move
-    if (allowNullMove && depth >= 3 && !game.is_check(game.color) &&
-        game.has_non_pawn_material(game.color)) {
+    if (allowNullMove && depth >= 3 && !check && game.has_non_pawn_material(game.color)) {
         constexpr int R = 2;
 
         game.make_null_move();
@@ -294,7 +295,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         if (legalMoves == 0) {
             score = -search(ctx, game, -beta, -alpha, depth - 1, true);
         } else {
-            if (depth >= 3 && legalMoves >= 3 && !move.is_capture() && !game.is_check(game.color) &&
+            if (depth >= 3 && legalMoves >= 3 && !check && !move.is_capture() &&
                 ctx.history[!game.color][move.from][move.to] < 0) {
                 reduction = 1;
             }
@@ -344,7 +345,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     ctx.ply--;
 
     if (legalMoves == 0) {
-        if (game.is_check(game.color)) {
+        if (check) {
             bestScore = -mate + ctx.ply;
         } else {
             bestScore = 0;
