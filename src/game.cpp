@@ -643,6 +643,11 @@ bool Game::is_insufficient_material() {
     }
 
     if (knights == 0 && bishops == 2) {
+        if (bitboard[WHITE][uint8_t(Piece::BISHOP)] && bitboard[BLACK][uint8_t(Piece::BISHOP)]) {
+            bool wLight = bitboard[WHITE][uint8_t(Piece::BISHOP)] & LIGHT_SQUARES;
+            bool bLight = bitboard[BLACK][uint8_t(Piece::BISHOP)] & LIGHT_SQUARES;
+            return wLight == bLight;
+        }
     }
     return false;
 }

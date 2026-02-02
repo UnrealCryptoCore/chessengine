@@ -26,6 +26,8 @@ constexpr uint8_t CASTLING_QUEEN_MASK_WHITE = (1 << CASTLING_QUEEN);
 constexpr uint8_t CASTLING_KING_MASK_WHITE = (1 << CASTLING_KING);
 constexpr uint8_t CASTLING_QUEEN_MASK_BLACK = (2 << CASTLING_QUEEN_MASK_WHITE);
 constexpr uint8_t CASTLING_KING_MASK_BLACK = (2 << CASTLING_KING_MASK_WHITE);
+constexpr BitBoard LIGHT_SQUARES = 0x55AA55AA55AA55AA;
+constexpr BitBoard DARK_SQUARES = 0xAA55AA55AA55AA55;
 
 constexpr std::array<char, numberChessPieces + 1> pieceChars{'k', 'q', 'r', 'b', 'n', 'p', ' '};
 constexpr std::array<std::array<std::string, numberChessPieces + 1>, 2> pieceSymbols{{
@@ -256,7 +258,7 @@ struct Game {
     StackList<uint64_t, 1024> history{};
 
     inline BitBoard occupancy_of(Piece piece) {
-        return bitboard[0][uint8_t(piece)] | bitboard[0][uint8_t(piece)];
+        return bitboard[WHITE][uint8_t(piece)] | bitboard[BLACK][uint8_t(piece)];
     }
 
     void reset();

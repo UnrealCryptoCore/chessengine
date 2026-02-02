@@ -245,6 +245,10 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
         return 0;
     }
 
+    if (game.is_insufficient_material()) {
+        return 0;
+    }
+
     if (depth <= 0) {
         return quiescence(ctx, game, alpha, beta);
     }
@@ -478,6 +482,10 @@ Score quiescence(SearchContext &ctx, Game &game, Score alpha, Score beta) {
         ctx.stop = true;
     }
 
+    if (game.is_insufficient_material()) {
+        return 0;
+    }
+ 
     Score static_eval = signedColor[game.color] * Evaluation::tapered_eval(game);
     Score best_value = static_eval;
     if (best_value > beta) {
