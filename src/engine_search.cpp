@@ -197,6 +197,10 @@ void inline update_TT(uint64_t hash, SearchContext &ctx, uint32_t depth, ChessGa
     }
 }
 
+bool inline is_killer(SearchContext &ctx, uint8_t ply, ChessGame::Move move) {
+    return move == ctx.killers[ply][0] || move == ctx.killers[ply][1];
+}
+
 Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth,
              int32_t ply, bool allowNullMove) {
     ctx.nodes++;
@@ -301,9 +305,13 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         if (legalMoves == 0) {
             score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
         } else {
-            if (depth >= 3 && legalMoves >= 3 && !check && !move.is_capture() &&
-                ctx.history[!game.color][move.from][move.to] < 0) {
+            bool canReduce = depth >= 3 && legalMoves >= 4 && !check && !move.is_capture();
+            if (is_killer(ctx, ply, move)) {
+                canReduce = false;
+            }
+            if (canReduce) {
                 reduction = 1.0 + std::log(depth) * std::log(legalMoves) / 3;
+                reduction += bool(ctx.history[!game.color][move.from][move.to] < 0);
             }
             score = -search(ctx, game, -alpha - 1, -alpha, depth - 1 - reduction, ply + 1, true);
             if (score > alpha && reduction > 0) {
@@ -346,7 +354,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
                     if (quietMove == entry.best) {
                         continue;
                     }
-                    if (quietMove == ctx.killers[ply][0] || quietMove == ctx.killers[ply][1]) {
+                    if (is_killer(ctx, ply, quietMove)) {
                         continue;
                     }
                     update_history(ctx, game.color, quietMove.from, quietMove.to, -depth * depth);
