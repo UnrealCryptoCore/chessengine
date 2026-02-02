@@ -36,17 +36,31 @@ uint32_t TranspositionTable::hashFull() const {
 
 void TranspositionTable::clear() { memset(&table[0], 0, sizeof(TableEntry) * table.size()); }
 
-inline bool TranspositionTable::probe(uint64_t hash, TableEntry &entry) const {
+int16_t score_to_tt(int16_t score, int ply) {
+    if (score > mate_threshold) return score + ply;
+    if (score < -mate_threshold) return score - ply;
+    return score;
+}
+
+int16_t score_from_tt(int16_t score, int ply) {
+    if (score > mate_threshold) return score - ply;
+    if (score < -mate_threshold) return score + ply;
+    return score;
+}
+
+inline bool TranspositionTable::probe(uint64_t hash, TableEntry &entry, uint8_t ply) const {
     entry = get(hash);
     if (!bool(entry.depth) || entry.hash != hash) {
         return false;
     }
+    entry.score = score_from_tt(entry.score, ply);
     return true;
 }
 
 inline void TranspositionTable::update(uint64_t hash, uint8_t gen, uint32_t depth,
-                                ChessGame::Move bestMove, Score bestScore, NodeType flag) {
+                                ChessGame::Move bestMove, Score bestScore, NodeType flag, uint8_t ply) {
     TableEntry &entry = get(hash);
+    bestScore = score_to_tt(bestScore, ply);
     if (depth >= entry.depth || entry.age() != gen) {
         entry.score = bestScore;
         entry.best = bestMove;
@@ -249,7 +263,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     ChessGame::Move bestMove{};
 
     TableEntry entry;
-    bool validTE = ctx.table->probe(game.hash, entry);
+    bool validTE = ctx.table->probe(game.hash, entry, ply);
     if (validTE) {
         NodeType type = entry.type();
         if (entry.depth >= depth) {
@@ -269,7 +283,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
                 if (bestScore >= beta) {
                     game.undo_move(entry.best);
                     ctx.table->update(game.hash, ctx.gen, depth, entry.best, bestScore,
-                                      NodeType::LOWER_BOUND);
+                                      NodeType::LOWER_BOUND, ply);
                     return bestScore;
                 }
                 if (bestScore > alpha) {
@@ -384,7 +398,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         return 0;
     }
 
-    ctx.table->update(game.hash, ctx.gen, depth, bestMove, bestScore, flag);
+    ctx.table->update(game.hash, ctx.gen, depth, bestMove, bestScore, flag, ply);
     return bestScore;
 }
 
