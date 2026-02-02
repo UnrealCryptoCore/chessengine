@@ -5,8 +5,7 @@
 #include <cstdint>
 #include <print>
 
-namespace ChessGame {
-namespace Evaluation {
+namespace Mondfisch::Evaluation {
 
 void show_piece_square_table(const std::array<int16_t, 64> &squares) {
     for (uint8_t y = 0; y < 8; y++) {
@@ -59,5 +58,4 @@ int32_t simple_evaluate(Game &game) {
     return value;
 }
 
-} // namespace Evaluation
-} // namespace ChessGame
+} // namespace Mondfisch::Evaluation

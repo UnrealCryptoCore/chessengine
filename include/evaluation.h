@@ -5,8 +5,7 @@
 #include <cassert>
 #include <cstdint>
 
-namespace ChessGame {
-namespace Evaluation {
+namespace Mondfisch::Evaluation {
 
 inline constexpr Position flip(Position pos) { return pos ^ 56; }
 
@@ -196,5 +195,4 @@ int32_t simple_evaluate(Game &game);
 
 int32_t tapered_eval(Game &game);
 
-} // namespace Evaluation
-} // namespace ChessGame
+} // namespace Mondfisch::Evaluation

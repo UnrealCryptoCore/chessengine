@@ -9,14 +9,11 @@
 #include <sstream>
 #include <string>
 
-#define RANK_MASK(rank) (0xffULL << ((rank) * 8))
 #define FORWARD(pos, amount) ((pos) + 8 * (amount))
 #define BACKWARD(pos, amount) ((pos) - 8 * (amount))
 #define LEFT(pos, amount) ((pos) - (amount))
 #define RIGHT(pos, amount) ((pos) + (amount))
 
-#define WHITE 0
-#define BLACK 1
 #define NO_EP 8
 
 #define CASTLING_QUEEN 0
@@ -26,22 +23,23 @@
 #define CASTLING_QUEEN_MASK_BLACK (2 << CASTLING_QUEEN_MASK_WHITE)
 #define CASTLING_KING_MASK_BLACK (2 << CASTLING_KING_MASK_WHITE)
 
-#define PIECE_COLOR_MASK 0b1000
-
-namespace ChessGame {
+namespace Mondfisch {
 
 using Position = uint8_t;
 using BitBoard = uint64_t;
 
+constexpr uint8_t PIECE_COLOR_MASK = 0b1000;
 constexpr int numberChessPieces = 6;
+constexpr uint8_t WHITE = 0;
+constexpr uint8_t BLACK = 0;
 
-const std::array<char, numberChessPieces + 1> pieceChars{'k', 'q', 'r', 'b', 'n', 'p', ' '};
-const std::array<std::array<std::string, numberChessPieces + 1>, 2> pieceSymbols{{
+constexpr std::array<char, numberChessPieces + 1> pieceChars{'k', 'q', 'r', 'b', 'n', 'p', ' '};
+constexpr std::array<std::array<std::string, numberChessPieces + 1>, 2> pieceSymbols{{
     {"♚", "♛", "♜", "♝", "♞", "♟", " "},
     {"♔", "♕", "♖", "♗", "♘", "♙", " "},
 }};
-const std::array<char, 8> files{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
-const std::array<int8_t, 2> signedColor{1, -1};
+constexpr std::array<char, 8> files{'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'};
+constexpr std::array<int8_t, 2> signedColor{1, -1};
 
 inline std::array<std::array<BitBoard, 9>, 2> epMasks;
 inline std::array<BitBoard, 8> rankMasks;
@@ -84,6 +82,10 @@ enum class Piece : uint8_t {
     NONE,
 };
 
+inline BitBoard rank_mask(uint8_t rank) { return (0xffULL << ((rank) * 8)); }
+//inline Position left(Position pos, int8_t amount) { return pos - amount; }
+//inline Position right(Position pos, int8_t amount) { return pos + amount; }
+
 inline void unset_bit(BitBoard &bb, Position pos) { bb &= ~(1ULL << pos); }
 
 inline void set_bit(BitBoard &bb, Position pos) { bb |= 1ULL << pos; }
@@ -95,7 +97,7 @@ inline Position bitboard_to_position(BitBoard bb) { return std::countr_zero(bb);
 
 inline constexpr Position coords_to_pos(Position x, Position y) { return x + y * 8; }
 
-inline bool is_on_rank(Position pos, uint8_t rank) { return (1ULL << pos) & RANK_MASK(rank); }
+inline bool is_on_rank(Position pos, uint8_t rank) { return (1ULL << pos) & rank_mask(rank); }
 
 inline constexpr uint8_t file_from_pos(Position pos) { return pos % 8; }
 
@@ -178,7 +180,7 @@ struct Move {
 
     inline bool is_capture() {
         return uint8_t(flags) &
-               (uint8_t(ChessGame::MoveType::MOVE_CAPTURE) | uint8_t(ChessGame::MoveType::MOVE_EP));
+               (uint8_t(MoveType::MOVE_CAPTURE) | uint8_t(MoveType::MOVE_EP));
     }
 
     inline bool is_tactical() { return promote != Piece::NONE || is_capture(); }
@@ -258,6 +260,10 @@ struct Game {
     StackList<UndoMove, 1024> undoStack{};
     StackList<uint64_t, 1024> history{};
 
+    inline BitBoard occupancy_of(Piece piece) {
+        return bitboard[0][uint8_t(piece)] | bitboard[0][uint8_t(piece)];
+    }
+
     void reset();
     void calculateOccupancy();
     BitBoard attackBoard(BitBoard p, BitBoard mask, BitBoard occupancy);
@@ -281,6 +287,7 @@ struct Game {
     BitBoard attacks_to(Position pos);
     int32_t see(Position from, Position target, uint8_t color);
     bool is_draw();
+    bool is_insufficient_material();
     bool is_repetition_draw();
     bool has_non_pawn_material(uint8_t color);
     bool is_valid_move(Move move);
@@ -309,4 +316,4 @@ struct Game {
 };
 
 void perftInfo(Game &game, uint32_t n);
-} // namespace ChessGame
+} // namespace Mondfisch

@@ -1,6 +1,7 @@
 #include "game.h"
 #include "evaluation.h"
 #include <array>
+#include <bit>
 #include <cassert>
 #include <cctype>
 #include <cstddef>
@@ -14,7 +15,7 @@
 #include <string>
 #include <vector>
 
-namespace ChessGame {
+namespace Mondfisch {
 
 uint64_t reverse_bits(uint64_t x) {
     x = ((x & 0x5555555555555555ull) << 1) | ((x >> 1) & 0x5555555555555555ull);
@@ -386,23 +387,23 @@ bool Game::is_pseudo_legal(Move move) {
 
     MoveList moves{};
     switch (piece) {
-    case ChessGame::Piece::KING:
+    case Piece::KING:
         generate_king_moves(move.from, moves);
         break;
-    case ChessGame::Piece::QUEEN:
+    case Piece::QUEEN:
         generate_rook_moves(move.from, moves);
         generate_bishop_moves(move.from, moves);
         break;
-    case ChessGame::Piece::ROOK:
+    case Piece::ROOK:
         generate_rook_moves(move.from, moves);
         break;
-    case ChessGame::Piece::BISHOP:
+    case Piece::BISHOP:
         generate_bishop_moves(move.from, moves);
         break;
-    case ChessGame::Piece::KNIGHT:
+    case Piece::KNIGHT:
         valid_bit_mask_moves(move.from, moves, knightMoves);
         break;
-    case ChessGame::Piece::PAWN:
+    case Piece::PAWN:
         generate_pawn_moves(move.from, moves);
         break;
     default:
@@ -627,6 +628,25 @@ bool Game::is_repetition_draw() {
     return false;
 }
 
+bool Game::is_insufficient_material() {
+    BitBoard sufficient =
+        occupancy_of(Piece::PAWN) | occupancy_of(Piece::ROOK) | occupancy_of(Piece::QUEEN);
+    if (sufficient) {
+        return false;
+    }
+
+    int knights = std::popcount(occupancy_of(Piece::KNIGHT));
+    int bishops = std::popcount(occupancy_of(Piece::BISHOP));
+
+    if (knights + bishops <= 1) {
+        return true;
+    }
+
+    if (knights == 0 && bishops == 2) {
+    }
+    return false;
+}
+
 bool Game::is_check(uint8_t color) {
     BitBoard board = bitboard[color][uint8_t(Piece::KING)];
     Position pos = bitboard_to_position(board);
@@ -684,8 +704,12 @@ void Game::make_move(Move move) {
         to = BACKWARD(move.to, signedColor[color]);
         /* falltrough */
     case MoveType::MOVE_CAPTURE:
+        if (board[to] != 6) {
+            std::print("{}\n", uint8_t(piece_from_piece(board[move.from])));
+        }
         undo.capture = board[to];
         pieceTo = piece_from_piece(undo.capture);
+        assert(pieceTo != Piece::NONE);
         unset_bit(occupancy[!color], to);
         unset_bit(bitboard[!color][(uint8_t)pieceTo], to);
         board[to] = (uint8_t)Piece::NONE;
@@ -1253,4 +1277,4 @@ void perftInfo(Game &game, uint32_t n) {
 
     std::print("\nnodes searched {}: \n", count);
 }
-} // namespace ChessGame
+} // namespace Mondfisch

@@ -6,7 +6,7 @@
 #include <cstdint>
 #include <vector>
 
-namespace Search {
+namespace Mondfisch::Search {
 
 using Score = int16_t;
 
@@ -30,7 +30,7 @@ enum class NodeType : uint8_t {
 
 struct TableEntry {
     uint64_t hash;
-    ChessGame::Move best;
+    Move best;
     Score score;
     uint8_t depth;
     uint8_t gen;
@@ -42,9 +42,9 @@ struct TableEntry {
 
 struct SearchResult {
     Score score;
-    ChessGame::Move bestMove;
+    Move bestMove;
     uint64_t nodes;
-    std::vector<ChessGame::Move> pv;
+    std::vector<Move> pv;
     uint32_t depth;
     int64_t elapsed;
 };
@@ -56,8 +56,8 @@ struct TranspositionTable {
     size_t size() const { return table.size(); }
     void clear();
 
-    inline void update(uint64_t hash, uint8_t gen, uint32_t depth, ChessGame::Move bestMove,
-                       Score bestScore, NodeType flag, uint8_t ply);
+    inline void update(uint64_t hash, uint8_t gen, uint32_t depth, Move bestMove, Score bestScore,
+                       NodeType flag, uint8_t ply);
     inline bool probe(uint64_t hash, TableEntry &entry, uint8_t ply) const;
 
     TableEntry &get(uint64_t hash) { return table[hash & (table.size() - 1)]; }
@@ -81,10 +81,10 @@ struct SearchContext {
     std::chrono::steady_clock::time_point timeStart;
     uint8_t gen = 0;
     TranspositionTable *table = nullptr;
-    std::array<std::array<ChessGame::Move, 2>, max_depth> killers{};
+    std::array<std::array<Move, 2>, max_depth> killers{};
     std::array<std::array<std::array<int32_t, 64>, 64>, 2> history{};
-    ChessGame::MoveList moves;
-    // ChessGame::StackList<StackElement, max_depth> stack{};
+    MoveList moves;
+    // StackList<StackElement, max_depth> stack{};
 
     void reset();
     void resetSearch();
@@ -95,22 +95,20 @@ struct SearchContext {
 
 bool is_mate(Score score);
 
-void score_moves(SearchContext &ctx, ChessGame::Game &game, ChessGame::MoveList &moves);
+void score_moves(SearchContext &ctx, Game &game, MoveList &moves);
 
-void sort_moves(ChessGame::MoveList &moves);
+void sort_moves(MoveList &moves);
 
-Score simpleMinimax(ChessGame::Game &game, int32_t depth);
-
-Score simpleAlphaBeta(ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth);
-
-Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth,
+Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_t depth,
              int32_t ply, bool allowNullMove);
 
-Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score beta);
+Score quiescence(SearchContext &ctx, Game &game, Score alpha, Score beta);
 
-Score test_search_root(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta,
-                       int32_t depth);
+Score test_search_root(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_t depth);
 
-Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth);
+Score search_root(SearchContext &ctx, Game &game, uint32_t depth);
 
-} // namespace Search
+void calculate_pv_moves(SearchContext &ctx, Game &game, std::vector<Move> &moves, int8_t depth);
+
+SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_t depth);
+} // namespace Mondfisch::Search

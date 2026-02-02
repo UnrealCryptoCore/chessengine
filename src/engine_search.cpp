@@ -1,6 +1,7 @@
 #include "engine_search.h"
 #include "evaluation.h"
 #include "game.h"
+#include "uci.h"
 #include <algorithm>
 #include <cassert>
 #include <chrono>
@@ -9,8 +10,9 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
+#include <print>
 
-namespace Search {
+namespace Mondfisch::Search {
 
 bool is_mate(Score score) { return std::abs(score) > mate_threshold; }
 
@@ -65,9 +67,8 @@ inline bool TranspositionTable::probe(uint64_t hash, TableEntry &entry, uint8_t 
     return true;
 }
 
-inline void TranspositionTable::update(uint64_t hash, uint8_t gen, uint32_t depth,
-                                       ChessGame::Move bestMove, Score bestScore, NodeType flag,
-                                       uint8_t ply) {
+inline void TranspositionTable::update(uint64_t hash, uint8_t gen, uint32_t depth, Move bestMove,
+                                       Score bestScore, NodeType flag, uint8_t ply) {
     TableEntry &entry = get(hash);
     bestScore = score_to_tt(bestScore, ply);
     if (depth >= entry.depth || entry.age() != gen) {
@@ -114,15 +115,15 @@ bool SearchContext::timeUp() const {
     return elapsed.count() > thinkingTime;
 }
 
-Score score_move(SearchContext &ctx, ChessGame::Game &game, ChessGame::Move move) {
+Score score_move(SearchContext &ctx, Game &game, Move move) {
     Score score = 0;
-    if (move.promote == ChessGame::Piece::QUEEN) {
+    if (move.promote == Piece::QUEEN) {
         score = 20000;
-    } else if (move.promote != ChessGame::Piece::NONE) {
+    } else if (move.promote != Piece::NONE) {
         score = 13000;
     }
 
-    if (move.flags == ChessGame::MoveType::MOVE_CAPTURE) {
+    if (move.flags == MoveType::MOVE_CAPTURE) {
         Score see = game.see(move.from, move.to, game.color);
         if (see >= 0) {
             return 16000 + see + score;
@@ -137,13 +138,13 @@ Score score_move(SearchContext &ctx, ChessGame::Game &game, ChessGame::Move move
     return ctx.history[game.color][move.from][move.to];
 }
 
-void score_moves(SearchContext &ctx, ChessGame::Game &game, ChessGame::MoveList &moves) {
+void score_moves(SearchContext &ctx, Game &game, MoveList &moves) {
     for (auto &move : moves) {
         move.score = score_move(ctx, game, move.move);
     }
 }
 
-void sort_moves(ChessGame::MoveList &moves) {
+void sort_moves(MoveList &moves) {
     for (uint16_t i = 0; i < moves.size(); i++) {
         uint16_t best = i;
         for (uint16_t j = i + 1; j < moves.size(); j++) {
@@ -155,7 +156,7 @@ void sort_moves(ChessGame::MoveList &moves) {
     }
 }
 
-uint32_t find_best(SearchContext &ctx, ChessGame::Game &game, ChessGame::MoveList &moves) {
+uint32_t find_best(SearchContext &ctx, Game &game, MoveList &moves) {
     uint32_t best = 0;
     int32_t bestScore = -max_value;
     for (uint32_t i = 0; i < moves.size(); i++) {
@@ -168,7 +169,7 @@ uint32_t find_best(SearchContext &ctx, ChessGame::Game &game, ChessGame::MoveLis
     return best;
 }
 
-inline ChessGame::Move find_next(ChessGame::Game &game, ChessGame::MoveList &moves, uint8_t idx) {
+inline Move find_next(Game &game, MoveList &moves, uint8_t idx) {
     int32_t best = idx;
     Score bestScore = -mate;
     for (uint32_t i = idx; i < moves.size(); i++) {
@@ -181,7 +182,7 @@ inline ChessGame::Move find_next(ChessGame::Game &game, ChessGame::MoveList &mov
     return moves[idx].move;
 }
 
-inline ChessGame::ScoreMove find_next_rm(ChessGame::Game &game, ChessGame::MoveList &moves) {
+inline ScoreMove find_next_rm(Game &game, MoveList &moves) {
     int32_t best = 0;
     Score bestScore = -mate;
     for (uint32_t i = 0; i < moves.size(); i++) {
@@ -190,17 +191,17 @@ inline ChessGame::ScoreMove find_next_rm(ChessGame::Game &game, ChessGame::MoveL
             best = i;
         }
     }
-    ChessGame::ScoreMove move = moves[best];
+    ScoreMove move = moves[best];
     moves.remove_unordered(best);
     return move;
 }
 
-inline void push_move_to_front(ChessGame::MoveList &moves, ChessGame::Move move) {
+inline void push_move_to_front(MoveList &moves, Move move) {
     for (uint8_t i = 0; i < moves.size(); i++) {
         if (moves[i].move != move) {
             continue;
         }
-        ChessGame::ScoreMove tmp = moves[i];
+        ScoreMove tmp = moves[i];
         for (uint8_t j = 1; j < i; j++) {
             moves[i - j + 1] = moves[i - j];
         }
@@ -209,7 +210,7 @@ inline void push_move_to_front(ChessGame::MoveList &moves, ChessGame::Move move)
     }
 }
 
-inline void set_move_score(ChessGame::MoveList &moves, ChessGame::Move move, Score value) {
+inline void set_move_score(MoveList &moves, Move move, Score value) {
     for (uint8_t i = 0; i < moves.size(); i++) {
         if (moves[i].move == move) {
             moves[i].score = value;
@@ -218,19 +219,19 @@ inline void set_move_score(ChessGame::MoveList &moves, ChessGame::Move move, Sco
     }
 }
 
-void update_history(SearchContext &ctx, uint8_t color, ChessGame::Position from,
-                    ChessGame::Position to, int32_t bonus) {
+void update_history(SearchContext &ctx, uint8_t color, Position from, Position to, int32_t bonus) {
     int32_t clampedBonus = std::clamp(bonus, -max_history, max_history);
     ctx.history[color][from][to] +=
         clampedBonus - ctx.history[color][from][to] * std::abs(clampedBonus) / max_history;
 }
 
-bool inline is_killer(SearchContext &ctx, uint8_t ply, ChessGame::Move move) {
+bool inline is_killer(SearchContext &ctx, uint8_t ply, Move move) {
     return move == ctx.killers[ply][0] || move == ctx.killers[ply][1];
 }
 
-Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t beta, int32_t depth,
+Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_t depth,
              int32_t ply, bool allowNullMove) {
+    std::print("search here {}\n", depth);
     ctx.nodes++;
 
     if (ctx.stop) {
@@ -264,12 +265,13 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
             return score;
         }
     }
+    std::print("search here2 {}\n", depth);
 
     int32_t origAlpha = alpha;
     NodeType flag = NodeType::UPPER_BOUND;
     int32_t bestScore = -max_value;
     uint8_t legalMoves = 0;
-    ChessGame::Move bestMove{};
+    Move bestMove{};
 
     TableEntry entry;
     bool validTE = ctx.table->probe(game.hash, entry, ply);
@@ -306,7 +308,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         }
     }
 
-    ChessGame::MoveList moves;
+    MoveList moves;
 
     game.pseudo_legal_moves(moves);
     score_moves(ctx, game, moves);
@@ -316,9 +318,10 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         set_move_score(moves, ctx.killers[ply][i], mate / 2 - i);
     }
 
+    std::print("search here3 {}\n", depth);
     sort_moves(moves);
     for (uint8_t i = 0; i < moves.size(); i++) {
-        ChessGame::Move move = moves[i].move;
+        Move move = moves[i].move;
         if (move == entry.best) {
             continue;
         }
@@ -376,7 +379,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
                 update_history(ctx, game.color, move.from, move.to, depth * depth);
                 // penalize other quiet moves
                 for (uint8_t j = 0; j < i; j++) {
-                    ChessGame::Move quietMove = moves[j].move;
+                    Move quietMove = moves[j].move;
                     if (quietMove.is_capture()) {
                         continue;
                     }
@@ -393,6 +396,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
             break;
         }
     }
+    std::print("search here4 {}\n", depth);
 
     if (legalMoves == 0) {
         if (check) {
@@ -411,12 +415,12 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     return bestScore;
 }
 
-Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t depth) {
+Score search_root(Search::SearchContext &ctx, Game &game, uint32_t depth) {
     ctx.nodes++;
     Score alpha = -mate;
     Score beta = mate;
     uint64_t entryIdx = game.hash & (ctx.table->size() - 1);
-    ChessGame::Move bestMove;
+    Move bestMove;
 
     TableEntry &entry = ctx.table->table[entryIdx];
     if (bool(entry.depth) && entry.hash == game.hash) {
@@ -427,8 +431,10 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
     Score origAlpha = alpha;
 
     for (uint8_t i = 0; i < ctx.moves.size(); i++) {
-        ChessGame::ScoreMove &move = ctx.moves[i];
+        std::print("root {}\n", i);
+        ScoreMove &move = ctx.moves[i];
         game.make_move(move.move);
+        std::print("root here {}\n", i);
 
         Score score;
         if (i == 0) {
@@ -439,6 +445,7 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
                 score = -search(ctx, game, -mate, mate, depth - 1, 1, true);
             }
         }
+        std::print("root done {}\n", i);
 
         game.undo_move(move.move);
 
@@ -468,7 +475,7 @@ Score search_root(Search::SearchContext &ctx, ChessGame::Game &game, uint32_t de
     return bestScore;
 }
 
-Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score beta) {
+Score quiescence(SearchContext &ctx, Game &game, Score alpha, Score beta) {
     ctx.nodes++;
 
     if (ctx.stop) {
@@ -479,8 +486,7 @@ Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score b
         ctx.stop = true;
     }
 
-    Score static_eval =
-        ChessGame::signedColor[game.color] * ChessGame::Evaluation::tapered_eval(game);
+    Score static_eval = signedColor[game.color] * Evaluation::tapered_eval(game);
     Score best_value = static_eval;
     if (best_value > beta) {
         return best_value;
@@ -489,12 +495,12 @@ Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score b
         alpha = best_value;
     }
 
-    ChessGame::MoveList moves;
+    MoveList moves;
     game.pseudo_legal_captures(moves);
     score_moves(ctx, game, moves);
 
     while (moves.size() > 0) {
-        ChessGame::Move move = find_next_rm(game, moves).move;
+        Move move = find_next_rm(game, moves).move;
         if (game.see(move.from, move.to, game.color) < 0) {
             continue;
         }
@@ -517,4 +523,77 @@ Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score b
     }
     return best_value;
 }
-} // namespace Search
+
+void calculate_pv_moves(SearchContext &ctx, Game &game, std::vector<Move> &moves, int8_t depth) {
+    auto move = moves.back();
+    game.make_move(move);
+
+    if (game.is_draw()) {
+        game.undo_move(move);
+        return;
+    }
+
+    Search::TableEntry &entry = ctx.table->get(game.hash);
+    if (entry.hash != game.hash) {
+        game.undo_move(move);
+        return;
+    }
+
+    if (!game.is_pseudo_legal(entry.best)) {
+        return;
+    }
+
+    moves.push_back(entry.best);
+    if (depth > 0) {
+        calculate_pv_moves(ctx, game, moves, depth - 1);
+    }
+
+    game.undo_move(move);
+}
+
+Search::SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_t depth) {
+    ctx.resetSearch();
+    Search::SearchResult lastResult;
+    auto start = ctx.timeStart;
+
+    game.legal_moves(ctx.moves);
+
+    for (uint32_t i = 1; i <= depth; i++) {
+        std::print("here {}\n", i);
+        Search::search_root(ctx, game, i);
+        std::print("here s {}\n", i);
+
+        if (ctx.stop) {
+            break;
+        }
+
+        Search::sort_moves(ctx.moves);
+        ScoreMove bestMove = ctx.moves[0];
+
+        auto end = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+        std::vector<Move> pvs{ctx.moves[0].move};
+        calculate_pv_moves(ctx, game, pvs, i);
+        Search::SearchResult result{
+            .score = bestMove.score,
+            .bestMove = bestMove.move,
+            .nodes = ctx.nodes,
+            .pv = pvs,
+            .depth = i,
+            .elapsed = elapsed,
+        };
+        IO::sendSearchInfo(result, ctx.table->hashFull());
+        std::print("here2 {}\n", i);
+
+        start = end;
+        lastResult = result;
+
+        if (Search::is_mate(result.score)) {
+            break;
+        }
+
+        ctx.history_decay();
+    }
+    return lastResult;
+}
+} // namespace Mondfisch::Search
