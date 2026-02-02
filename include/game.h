@@ -180,6 +180,9 @@ struct Move {
         return uint8_t(flags) &
                (uint8_t(ChessGame::MoveType::MOVE_CAPTURE) | uint8_t(ChessGame::MoveType::MOVE_EP));
     }
+
+    inline bool is_tactical() { return promote != Piece::NONE || is_capture(); }
+
     inline bool operator==(const Move &other) const {
         return *reinterpret_cast<const uint32_t *>(this) ==
                *reinterpret_cast<const uint32_t *>(&other);

@@ -36,6 +36,26 @@ uint32_t TranspositionTable::hashFull() const {
 
 void TranspositionTable::clear() { memset(&table[0], 0, sizeof(TableEntry) * table.size()); }
 
+inline bool TranspositionTable::probe(uint64_t hash, TableEntry &entry) const {
+    entry = get(hash);
+    if (!bool(entry.depth) || entry.hash != hash) {
+        return false;
+    }
+    return true;
+}
+
+inline void TranspositionTable::update(uint64_t hash, uint8_t gen, uint32_t depth,
+                                ChessGame::Move bestMove, Score bestScore, NodeType flag) {
+    TableEntry &entry = get(hash);
+    if (depth >= entry.depth || entry.age() != gen) {
+        entry.score = bestScore;
+        entry.best = bestMove;
+        entry.depth = depth;
+        entry.hash = hash;
+        entry.gen = uint8_t(flag) | gen;
+    }
+}
+
 void SearchContext::reset() {
     thinkingTime = 0;
     table = nullptr;
@@ -182,21 +202,6 @@ void update_history(SearchContext &ctx, uint8_t color, ChessGame::Position from,
         clampedBonus - ctx.history[color][from][to] * std::abs(clampedBonus) / max_history;
 }
 
-void inline update_TT(uint64_t hash, SearchContext &ctx, uint32_t depth, ChessGame::Move bestMove,
-                      Score bestScore, NodeType flag) {
-    if (ctx.stop) {
-        return;
-    }
-    TableEntry &entry = ctx.table->get(hash);
-    if (depth >= entry.depth || entry.age() != ctx.gen) {
-        entry.score = bestScore;
-        entry.best = bestMove;
-        entry.depth = depth;
-        entry.hash = hash;
-        entry.gen = uint8_t(flag) | ctx.gen;
-    }
-}
-
 bool inline is_killer(SearchContext &ctx, uint8_t ply, ChessGame::Move move) {
     return move == ctx.killers[ply][0] || move == ctx.killers[ply][1];
 }
@@ -229,7 +234,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         constexpr int R = 2;
 
         game.make_null_move();
-        Score score = -search(ctx, game, -beta, -beta + 1, depth - 1 - R, ply, false);
+        Score score = -search(ctx, game, -beta, -beta + 1, depth - 1 - R, ply + 1, false);
         game.undo_null_move();
 
         if (score >= beta) {
@@ -243,9 +248,9 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     uint8_t legalMoves = 0;
     ChessGame::Move bestMove{};
 
-    // Transposition Table move first
-    TableEntry entry = ctx.table->get(game.hash);
-    if (bool(entry.depth) && entry.hash == game.hash) {
+    TableEntry entry;
+    bool validTE = ctx.table->probe(game.hash, entry);
+    if (validTE) {
         NodeType type = entry.type();
         if (entry.depth >= depth) {
             if (type == NodeType::EXACT) {
@@ -263,7 +268,8 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
                 bestScore = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
                 if (bestScore >= beta) {
                     game.undo_move(entry.best);
-                    update_TT(game.hash, ctx, depth, entry.best, bestScore, NodeType::LOWER_BOUND);
+                    ctx.table->update(game.hash, ctx.gen, depth, entry.best, bestScore,
+                                      NodeType::LOWER_BOUND);
                     return bestScore;
                 }
                 if (bestScore > alpha) {
@@ -305,8 +311,8 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         if (legalMoves == 0) {
             score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
         } else {
-            bool canReduce = depth >= 3 && legalMoves >= 4 && !check && !move.is_capture();
-            if (is_killer(ctx, ply, move)) {
+            bool canReduce = depth >= 3 && legalMoves >= 4 && !check;
+            if (move.is_tactical() || is_killer(ctx, ply, move)) {
                 canReduce = false;
             }
             if (canReduce) {
@@ -374,7 +380,11 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         return bestScore;
     }
 
-    update_TT(game.hash, ctx, depth, bestMove, bestScore, flag);
+    if (ctx.stop) {
+        return 0;
+    }
+
+    ctx.table->update(game.hash, ctx.gen, depth, bestMove, bestScore, flag);
     return bestScore;
 }
 

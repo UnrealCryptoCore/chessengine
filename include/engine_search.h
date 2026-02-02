@@ -56,6 +56,10 @@ struct TranspositionTable {
     size_t size() const { return table.size(); }
     void clear();
 
+    inline void update(uint64_t hash, uint8_t gen, uint32_t depth, ChessGame::Move bestMove,
+                       Score bestScore, NodeType flag);
+    inline bool probe(uint64_t hash, TableEntry &entry) const;
+
     TableEntry &get(uint64_t hash) { return table[hash & (table.size() - 1)]; }
     const TableEntry &get(uint64_t hash) const { return table[hash & (table.size() - 1)]; }
 

@@ -171,7 +171,7 @@ struct IO {
         }
         std::string score;
         if (Search::is_mate(result.score)) {
-            score = std::format("mate {}", Search::mate - std::abs(result.score));
+            score = std::format("mate {}", ((Search::mate - std::abs(result.score)) + 1) / 2);
         } else {
             score = std::format("cp {}", result.score);
         }
