@@ -10,7 +10,6 @@
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
-#include <print>
 
 namespace Mondfisch::Search {
 
@@ -231,7 +230,6 @@ bool inline is_killer(SearchContext &ctx, uint8_t ply, Move move) {
 
 Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_t depth,
              int32_t ply, bool allowNullMove) {
-    std::print("search here {}\n", depth);
     ctx.nodes++;
 
     if (ctx.stop) {
@@ -265,7 +263,6 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
             return score;
         }
     }
-    std::print("search here2 {}\n", depth);
 
     int32_t origAlpha = alpha;
     NodeType flag = NodeType::UPPER_BOUND;
@@ -318,7 +315,6 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
         set_move_score(moves, ctx.killers[ply][i], mate / 2 - i);
     }
 
-    std::print("search here3 {}\n", depth);
     sort_moves(moves);
     for (uint8_t i = 0; i < moves.size(); i++) {
         Move move = moves[i].move;
@@ -396,7 +392,6 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
             break;
         }
     }
-    std::print("search here4 {}\n", depth);
 
     if (legalMoves == 0) {
         if (check) {
@@ -431,10 +426,8 @@ Score search_root(Search::SearchContext &ctx, Game &game, uint32_t depth) {
     Score origAlpha = alpha;
 
     for (uint8_t i = 0; i < ctx.moves.size(); i++) {
-        std::print("root {}\n", i);
         ScoreMove &move = ctx.moves[i];
         game.make_move(move.move);
-        std::print("root here {}\n", i);
 
         Score score;
         if (i == 0) {
@@ -445,7 +438,6 @@ Score search_root(Search::SearchContext &ctx, Game &game, uint32_t depth) {
                 score = -search(ctx, game, -mate, mate, depth - 1, 1, true);
             }
         }
-        std::print("root done {}\n", i);
 
         game.undo_move(move.move);
 
@@ -559,9 +551,7 @@ Search::SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_
     game.legal_moves(ctx.moves);
 
     for (uint32_t i = 1; i <= depth; i++) {
-        std::print("here {}\n", i);
         Search::search_root(ctx, game, i);
-        std::print("here s {}\n", i);
 
         if (ctx.stop) {
             break;
@@ -583,7 +573,6 @@ Search::SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_
             .elapsed = elapsed,
         };
         IO::sendSearchInfo(result, ctx.table->hashFull());
-        std::print("here2 {}\n", i);
 
         start = end;
         lastResult = result;

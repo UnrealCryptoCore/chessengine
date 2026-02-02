@@ -302,10 +302,10 @@ void addPawnMoves(MoveList &moves, Move move, bool promote) {
 }
 
 void Game::generate_pawn_captures(Position pos, MoveList &moves) {
-    uint8_t forward = signedColor[color];
+    uint8_t fw = signedColor[color];
     uint8_t flags = 0;
 
-    Position move = FORWARD(pos, forward);
+    Position move = forward(pos, fw);
     bool promote = is_on_rank(move, promotionRank[color]);
     if (promote && !is_set(occupancyBoth, move)) {
         addPawnMoves(moves, Move{pos, move}, promote);
@@ -328,10 +328,10 @@ void Game::generate_pawn_captures(Position pos, MoveList &moves) {
 }
 
 void Game::generate_pawn_moves(Position pos, MoveList &moves) {
-    uint8_t forward = signedColor[color];
+    uint8_t fw = signedColor[color];
     uint8_t flags = 0;
 
-    Position move = FORWARD(pos, forward);
+    Position move = forward(pos, fw);
     bool promote = is_on_rank(move, promotionRank[color]);
     if (!is_set(occupancyBoth, move)) {
         addPawnMoves(moves, Move{pos, move}, promote);
@@ -352,7 +352,7 @@ void Game::generate_pawn_moves(Position pos, MoveList &moves) {
         addPawnMoves(moves, Move{pos, to, flags}, promote);
     }
 
-    Position move2 = FORWARD(move, forward);
+    Position move2 = forward(move, fw);
     if (is_on_rank(pos, sndHomeRank[color]) && !is_set(occupancyBoth, move) &&
         !is_set(occupancyBoth, move2)) {
         MoveType flags = MoveType::MOVE_DOUBLE_PAWN;
@@ -701,12 +701,9 @@ void Game::make_move(Move move) {
 
     switch (move.flags) {
     case MoveType::MOVE_EP:
-        to = BACKWARD(move.to, signedColor[color]);
+        to = backward(move.to, signedColor[color]);
         /* falltrough */
     case MoveType::MOVE_CAPTURE:
-        if (board[to] != 6) {
-            std::print("{}\n", uint8_t(piece_from_piece(board[move.from])));
-        }
         undo.capture = board[to];
         pieceTo = piece_from_piece(undo.capture);
         assert(pieceTo != Piece::NONE);
@@ -788,7 +785,7 @@ void Game::undo_move(Move move) {
         Piece capture = piece_from_piece(undo.capture);
         Position to = move.to;
         if (move.flags == MoveType::MOVE_EP) {
-            to = BACKWARD(move.to, signedColor[color]);
+            to = backward(move.to, signedColor[color]);
         }
 
         board[to] = undo.capture;
@@ -1117,7 +1114,7 @@ void initMoves(std::array<uint64_t, 64> &bitMoves, std::array<std::array<int8_t,
             if (file + move[1] < 0 || file + move[1] > 7) {
                 continue;
             }
-            Position nPos = FORWARD(RIGHT(pos, move[1]), move[0]);
+            Position nPos = forward(right(pos, move[1]), move[0]);
             mask |= position_to_bitboard(nPos);
         }
 

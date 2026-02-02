@@ -9,29 +9,23 @@
 #include <sstream>
 #include <string>
 
-#define FORWARD(pos, amount) ((pos) + 8 * (amount))
-#define BACKWARD(pos, amount) ((pos) - 8 * (amount))
-#define LEFT(pos, amount) ((pos) - (amount))
-#define RIGHT(pos, amount) ((pos) + (amount))
-
-#define NO_EP 8
-
-#define CASTLING_QUEEN 0
-#define CASTLING_KING 1
-#define CASTLING_QUEEN_MASK_WHITE (1 << CASTLING_QUEEN)
-#define CASTLING_KING_MASK_WHITE (1 << CASTLING_KING)
-#define CASTLING_QUEEN_MASK_BLACK (2 << CASTLING_QUEEN_MASK_WHITE)
-#define CASTLING_KING_MASK_BLACK (2 << CASTLING_KING_MASK_WHITE)
-
 namespace Mondfisch {
 
 using Position = uint8_t;
 using BitBoard = uint64_t;
 
-constexpr uint8_t PIECE_COLOR_MASK = 0b1000;
 constexpr int numberChessPieces = 6;
+
+constexpr uint8_t PIECE_COLOR_MASK = 0b1000;
 constexpr uint8_t WHITE = 0;
-constexpr uint8_t BLACK = 0;
+constexpr uint8_t BLACK = 1;
+constexpr uint8_t NO_EP = 8;
+constexpr uint8_t CASTLING_QUEEN = 0;
+constexpr uint8_t CASTLING_KING = 1;
+constexpr uint8_t CASTLING_QUEEN_MASK_WHITE = (1 << CASTLING_QUEEN);
+constexpr uint8_t CASTLING_KING_MASK_WHITE = (1 << CASTLING_KING);
+constexpr uint8_t CASTLING_QUEEN_MASK_BLACK = (2 << CASTLING_QUEEN_MASK_WHITE);
+constexpr uint8_t CASTLING_KING_MASK_BLACK = (2 << CASTLING_KING_MASK_WHITE);
 
 constexpr std::array<char, numberChessPieces + 1> pieceChars{'k', 'q', 'r', 'b', 'n', 'p', ' '};
 constexpr std::array<std::array<std::string, numberChessPieces + 1>, 2> pieceSymbols{{
@@ -83,8 +77,10 @@ enum class Piece : uint8_t {
 };
 
 inline BitBoard rank_mask(uint8_t rank) { return (0xffULL << ((rank) * 8)); }
-//inline Position left(Position pos, int8_t amount) { return pos - amount; }
-//inline Position right(Position pos, int8_t amount) { return pos + amount; }
+inline Position left(Position pos, int8_t amount) { return pos - amount; }
+inline Position right(Position pos, int8_t amount) { return pos + amount; }
+inline Position forward(Position pos, int8_t amount) { return pos + 8 * amount; }
+inline Position backward(Position pos, int8_t amount) { return pos - 8 * amount; }
 
 inline void unset_bit(BitBoard &bb, Position pos) { bb &= ~(1ULL << pos); }
 
@@ -122,16 +118,16 @@ inline uint64_t safe_shift(uint64_t x, uint8_t shift) {
     return (x << (shift & (W - 1))) & mask;
 }
 
-const std::array<std::array<Position, 2>, 2> castlingKingMoves{
+constexpr std::array<std::array<Position, 2>, 2> castlingKingMoves{
     {{coords_to_pos(2, 0), coords_to_pos(6, 0)}, {coords_to_pos(2, 7), coords_to_pos(6, 7)}}};
 
-const std::array<std::array<Position, 2>, 2> castlingRookMovesTo{
+constexpr std::array<std::array<Position, 2>, 2> castlingRookMovesTo{
     {{coords_to_pos(3, 0), coords_to_pos(5, 0)}, {coords_to_pos(3, 7), coords_to_pos(5, 7)}}};
 
-const std::array<std::array<Position, 2>, 2> castlingRookMovesFrom{
+constexpr std::array<std::array<Position, 2>, 2> castlingRookMovesFrom{
     {{coords_to_pos(0, 0), coords_to_pos(7, 0)}, {coords_to_pos(0, 7), coords_to_pos(7, 7)}}};
 
-const std::array<std::array<uint8_t, 2>, 2> castlingMask{
+constexpr std::array<std::array<uint8_t, 2>, 2> castlingMask{
     {{CASTLING_QUEEN_MASK_WHITE, CASTLING_KING_MASK_WHITE},
      {CASTLING_QUEEN_MASK_BLACK, CASTLING_KING_MASK_BLACK}}};
 
@@ -179,8 +175,7 @@ struct Move {
     std::string toString() const;
 
     inline bool is_capture() {
-        return uint8_t(flags) &
-               (uint8_t(MoveType::MOVE_CAPTURE) | uint8_t(MoveType::MOVE_EP));
+        return uint8_t(flags) & (uint8_t(MoveType::MOVE_CAPTURE) | uint8_t(MoveType::MOVE_EP));
     }
 
     inline bool is_tactical() { return promote != Piece::NONE || is_capture(); }
