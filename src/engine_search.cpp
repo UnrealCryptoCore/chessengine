@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -302,7 +303,7 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
         } else {
             if (depth >= 3 && legalMoves >= 3 && !check && !move.is_capture() &&
                 ctx.history[!game.color][move.from][move.to] < 0) {
-                reduction = 1;
+                reduction = 1.0 + std::log(depth) * std::log(legalMoves) / 3;
             }
             score = -search(ctx, game, -alpha - 1, -alpha, depth - 1 - reduction, ply + 1, true);
             if (score > alpha && reduction > 0) {
