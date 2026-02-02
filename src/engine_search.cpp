@@ -12,7 +12,7 @@
 
 namespace Search {
 
-bool is_mate(Score score) { return score > mate_threshold || score < -mate_threshold; }
+bool is_mate(Score score) { return std::abs(score) > mate_threshold; }
 
 void TranspositionTable::setsize(uint32_t mb) {
     size_t entries = (1014 * 1024 * mb) / sizeof(TableEntry);
@@ -37,14 +37,22 @@ uint32_t TranspositionTable::hashFull() const {
 void TranspositionTable::clear() { memset(&table[0], 0, sizeof(TableEntry) * table.size()); }
 
 int16_t score_to_tt(int16_t score, int ply) {
-    if (score > mate_threshold) return score + ply;
-    if (score < -mate_threshold) return score - ply;
+    if (score > mate_threshold) {
+        return score + ply;
+    }
+    if (score < -mate_threshold) {
+        return score - ply;
+    }
     return score;
 }
 
 int16_t score_from_tt(int16_t score, int ply) {
-    if (score > mate_threshold) return score - ply;
-    if (score < -mate_threshold) return score + ply;
+    if (score > mate_threshold) {
+        return score - ply;
+    }
+    if (score < -mate_threshold) {
+        return score + ply;
+    }
     return score;
 }
 
@@ -58,7 +66,8 @@ inline bool TranspositionTable::probe(uint64_t hash, TableEntry &entry, uint8_t 
 }
 
 inline void TranspositionTable::update(uint64_t hash, uint8_t gen, uint32_t depth,
-                                ChessGame::Move bestMove, Score bestScore, NodeType flag, uint8_t ply) {
+                                       ChessGame::Move bestMove, Score bestScore, NodeType flag,
+                                       uint8_t ply) {
     TableEntry &entry = get(hash);
     bestScore = score_to_tt(bestScore, ply);
     if (depth >= entry.depth || entry.age() != gen) {
@@ -265,8 +274,8 @@ Score search(SearchContext &ctx, ChessGame::Game &game, int32_t alpha, int32_t b
     TableEntry entry;
     bool validTE = ctx.table->probe(game.hash, entry, ply);
     if (validTE) {
-        NodeType type = entry.type();
-        if (entry.depth >= depth) {
+        if (entry.depth >= depth && !(is_mate(entry.score) && (entry.age() != ctx.gen))) {
+            NodeType type = entry.type();
             if (type == NodeType::EXACT) {
                 return entry.score;
             } else if (type == NodeType::LOWER_BOUND && entry.score >= beta) {
