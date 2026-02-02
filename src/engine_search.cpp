@@ -452,18 +452,17 @@ Score quiescence(SearchContext &ctx, ChessGame::Game &game, Score alpha, Score b
     score_moves(ctx, game, moves);
 
     while (moves.size() > 0) {
-        ChessGame::ScoreMove move = find_next_rm(game, moves);
-        if (!move.move.is_capture() && move.move.promote == ChessGame::Piece::NONE) {
-            exit(0);
+        ChessGame::Move move = find_next_rm(game, moves).move;
+        if (game.see(move.from, move.to, game.color) < 0) {
             continue;
         }
-        game.make_move(move.move);
+        game.make_move(move);
         if (game.is_check(!game.color)) {
-            game.undo_move(move.move);
+            game.undo_move(move);
             continue;
         }
         Score score = -quiescence(ctx, game, -beta, -alpha);
-        game.undo_move(move.move);
+        game.undo_move(move);
         if (score >= beta) {
             return score;
         }
