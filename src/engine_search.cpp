@@ -3,6 +3,7 @@
 #include "game.h"
 #include "uci.h"
 #include <algorithm>
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <cstddef>
@@ -266,7 +267,6 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
         }
     }
 
-    int32_t origAlpha = alpha;
     NodeType flag = NodeType::UPPER_BOUND;
     int32_t bestScore = -max_value;
     uint8_t legalMoves = 0;
@@ -412,61 +412,6 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
     return bestScore;
 }
 
-Score search_root(Search::SearchContext &ctx, Game &game, Score alpha, Score beta, int32_t depth) {
-    ctx.nodes++;
-    uint64_t entryIdx = game.hash & (ctx.table->size() - 1);
-    Move bestMove;
-
-    TableEntry &entry = ctx.table->table[entryIdx];
-    if (bool(entry.depth) && entry.hash == game.hash) {
-        push_move_to_front(ctx.moves, entry.best);
-    }
-
-    Score bestScore = -max_value;
-    Score origAlpha = alpha;
-
-    for (uint8_t i = 0; i < ctx.moves.size(); i++) {
-        ScoreMove &move = ctx.moves[i];
-        game.make_move(move.move);
-
-        Score score;
-        if (i == 0) {
-            score = -search(ctx, game, -mate, mate, depth - 1, 1, true);
-        } else {
-            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, 1, true);
-            if (score > alpha && score < beta) {
-                score = -search(ctx, game, -mate, mate, depth - 1, 1, true);
-            }
-        }
-
-        game.undo_move(move.move);
-
-        if (ctx.stop) {
-            return 0;
-        }
-
-        move.score = score;
-        if (score > bestScore) {
-            bestScore = score;
-            bestMove = move.move;
-            if (score > alpha) {
-                alpha = score;
-            }
-        }
-    }
-
-    update_history(ctx, !game.color, bestMove.from, bestMove.to, depth * depth);
-
-    if (!ctx.stop) {
-        entry.score = bestScore;
-        entry.best = bestMove;
-        entry.depth = depth;
-        entry.hash = game.hash;
-        entry.gen = (uint8_t(NodeType::EXACT) << node_shift) | ctx.gen;
-    }
-    return bestScore;
-}
-
 Score quiescence(SearchContext &ctx, Game &game, Score alpha, Score beta) {
     ctx.nodes++;
 
@@ -520,6 +465,71 @@ Score quiescence(SearchContext &ctx, Game &game, Score alpha, Score beta) {
     return best_value;
 }
 
+Score search_root(Search::SearchContext &ctx, Game &game, Score alpha, Score beta, int32_t depth) {
+    ctx.nodes++;
+    int32_t ply = 1;
+    uint64_t entryIdx = game.hash & (ctx.table->size() - 1);
+    Move bestMove;
+
+    TableEntry &entry = ctx.table->table[entryIdx];
+    if (bool(entry.depth) && entry.hash == game.hash) {
+        push_move_to_front(ctx.moves, entry.best);
+    }
+
+    Score bestScore = -max_value;
+    NodeType flag = NodeType::UPPER_BOUND;
+    Score origAlpha = alpha;
+
+    for (uint8_t i = 0; i < ctx.moves.size(); i++) {
+        ScoreMove &move = ctx.moves[i];
+        game.make_move(move.move);
+
+        Score score;
+        if (i == 0) {
+            score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
+        } else {
+            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, ply + 1, true);
+            if (score > alpha && score < beta) {
+                score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
+            }
+        }
+
+        game.undo_move(move.move);
+
+        if (ctx.stop) {
+            return 0;
+        }
+
+        move.score = score;
+        if (score > bestScore) {
+            bestScore = score;
+            bestMove = move.move;
+            if (score > alpha) {
+                alpha = score;
+                flag = NodeType::EXACT;
+            }
+        }
+
+        if (score <= origAlpha || score >= beta) {
+            return score;
+        }
+    }
+    if (ctx.stop) {
+        return 0;
+    }
+
+    update_history(ctx, game.color, bestMove.from, bestMove.to, depth * depth);
+    ctx.table->update(game.hash, ctx.gen, depth, bestMove, bestScore, flag, ply);
+
+    /*if (!ctx.stop) {
+        entry.score = bestScore;
+        entry.best = bestMove;
+        entry.depth = depth;
+        entry.hash = game.hash;
+        entry.gen = (uint8_t(NodeType::EXACT) << node_shift) | ctx.gen;
+    }*/
+    return bestScore;
+}
 void calculate_pv_moves(SearchContext &ctx, Game &game, std::vector<Move> &moves, int8_t depth) {
     auto move = moves.back();
     game.make_move(move);
@@ -547,44 +557,48 @@ void calculate_pv_moves(SearchContext &ctx, Game &game, std::vector<Move> &moves
     game.undo_move(move);
 }
 
-Search::SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_t depth) {
+SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_t depth) {
     ctx.resetSearch();
-    Search::SearchResult lastResult;
+    SearchResult lastResult;
     auto start = ctx.timeStart;
 
     game.legal_moves(ctx.moves);
     int32_t alpha = -mate;
     int32_t beta = mate;
-    Score score = 0;
-    Score delta = 30;
+    int32_t score = 0;
+    int32_t delta = 30;
 
     for (uint32_t i = 1; i <= depth; i++) {
+        alpha = i > 1 ? score - delta : -mate;
+        beta = i > 1 ? score + delta : mate;
+
         while (!ctx.stop) {
-            score = Search::search_root(ctx, game, alpha, beta, i);
+            score = search_root(ctx, game, alpha, beta, i);
             if (score <= alpha) {
-                alpha = std::max(-mate, alpha - delta);
+                alpha = -mate; /// = std::max(-mate, alpha - delta);
             } else if (score >= beta) {
-                beta = std::min(int32_t(mate), beta + delta);
+                beta = mate; /// std::min(int32_t(mate), beta + delta);
             } else {
                 break;
             }
-            delta += delta / 2;
+            // delta = std::max(int32_t(mate), delta * delta);
         }
-        alpha = score - delta;
-        alpha = score - delta;
 
         if (ctx.stop) {
             break;
         }
 
-        Search::sort_moves(ctx.moves);
-        ScoreMove bestMove = ctx.moves[0];
+        sort_moves(ctx.moves);
+        // ScoreMove bestMove = ctx.moves[0];
+        TableEntry entry;
+        ctx.table->probe(game.hash, entry, 0);
+        ScoreMove bestMove = {entry.best, entry.score};
 
         auto end = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
         std::vector<Move> pvs{ctx.moves[0].move};
         calculate_pv_moves(ctx, game, pvs, i);
-        Search::SearchResult result{
+        SearchResult result{
             .score = bestMove.score,
             .bestMove = bestMove.move,
             .nodes = ctx.nodes,
@@ -597,7 +611,7 @@ Search::SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_
         start = end;
         lastResult = result;
 
-        if (Search::is_mate(result.score)) {
+        if (is_mate(result.score)) {
             break;
         }
 
