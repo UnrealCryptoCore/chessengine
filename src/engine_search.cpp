@@ -575,13 +575,13 @@ SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_t depth)
         while (!ctx.stop) {
             score = search_root(ctx, game, alpha, beta, i);
             if (score <= alpha) {
-                alpha = -mate; /// = std::max(-mate, alpha - delta);
+                alpha = std::max(-mate, alpha - delta);
             } else if (score >= beta) {
-                beta = mate; /// std::min(int32_t(mate), beta + delta);
+                beta = std::min(int32_t(mate), beta + delta);
             } else {
                 break;
             }
-            // delta = std::max(int32_t(mate), delta * delta);
+            delta *= 2;
         }
 
         if (ctx.stop) {
