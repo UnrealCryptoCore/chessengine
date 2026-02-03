@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(ENGINE_VERSION "v0.12.2_update")
+set(ENGINE_VERSION "v0.12.3_update")
 
 add_library(mondfisch 
     src/game.cpp

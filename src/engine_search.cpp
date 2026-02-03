@@ -521,13 +521,6 @@ Score search_root(Search::SearchContext &ctx, Game &game, Score alpha, Score bet
     update_history(ctx, game.color, bestMove.from, bestMove.to, depth * depth);
     ctx.table->update(game.hash, ctx.gen, depth, bestMove, bestScore, flag, ply);
 
-    /*if (!ctx.stop) {
-        entry.score = bestScore;
-        entry.best = bestMove;
-        entry.depth = depth;
-        entry.hash = game.hash;
-        entry.gen = (uint8_t(NodeType::EXACT) << node_shift) | ctx.gen;
-    }*/
     return bestScore;
 }
 void calculate_pv_moves(SearchContext &ctx, Game &game, std::vector<Move> &moves, int8_t depth) {
@@ -589,10 +582,7 @@ SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_t depth)
         }
 
         sort_moves(ctx.moves);
-        // ScoreMove bestMove = ctx.moves[0];
-        TableEntry entry;
-        ctx.table->probe(game.hash, entry, 0);
-        ScoreMove bestMove = {entry.best, entry.score};
+        ScoreMove bestMove = ctx.moves[0];
 
         auto end = std::chrono::steady_clock::now();
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
