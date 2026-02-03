@@ -9,7 +9,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(ENGINE_VERSION "v0.11.9_material_draw")
+set(ENGINE_VERSION "v0.12.1_aspiration_window")
 
 add_library(mondfisch 
     src/game.cpp

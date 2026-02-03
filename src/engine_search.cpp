@@ -5,10 +5,8 @@
 #include <algorithm>
 #include <cassert>
 #include <chrono>
-#include <cmath>
 #include <cstddef>
 #include <cstdint>
-#include <cstdlib>
 #include <cstring>
 
 namespace Mondfisch::Search {
@@ -414,10 +412,8 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
     return bestScore;
 }
 
-Score search_root(Search::SearchContext &ctx, Game &game, uint32_t depth) {
+Score search_root(Search::SearchContext &ctx, Game &game, Score alpha, Score beta, int32_t depth) {
     ctx.nodes++;
-    Score alpha = -mate;
-    Score beta = mate;
     uint64_t entryIdx = game.hash & (ctx.table->size() - 1);
     Move bestMove;
 
@@ -485,7 +481,7 @@ Score quiescence(SearchContext &ctx, Game &game, Score alpha, Score beta) {
     if (game.is_insufficient_material()) {
         return 0;
     }
- 
+
     Score static_eval = signedColor[game.color] * Evaluation::tapered_eval(game);
     Score best_value = static_eval;
     if (best_value > beta) {
@@ -557,9 +553,25 @@ Search::SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_
     auto start = ctx.timeStart;
 
     game.legal_moves(ctx.moves);
+    int32_t alpha = -mate;
+    int32_t beta = mate;
+    Score score = 0;
+    Score delta = 30;
 
     for (uint32_t i = 1; i <= depth; i++) {
-        Search::search_root(ctx, game, i);
+        while (!ctx.stop) {
+            score = Search::search_root(ctx, game, alpha, beta, i);
+            if (score <= alpha) {
+                alpha = std::max(-mate, alpha - delta);
+            } else if (score >= beta) {
+                beta = std::min(int32_t(mate), beta + delta);
+            } else {
+                break;
+            }
+            delta += delta / 2;
+        }
+        alpha = score - delta;
+        alpha = score - delta;
 
         if (ctx.stop) {
             break;

@@ -106,7 +106,7 @@ Score quiescence(SearchContext &ctx, Game &game, Score alpha, Score beta);
 
 Score test_search_root(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_t depth);
 
-Score search_root(SearchContext &ctx, Game &game, uint32_t depth);
+Score search_root(SearchContext &ctx, Game &game, Score alpha, Score beta, int32_t depth);
 
 void calculate_pv_moves(SearchContext &ctx, Game &game, std::vector<Move> &moves, int8_t depth);
 
