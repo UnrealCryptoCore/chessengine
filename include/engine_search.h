@@ -100,7 +100,7 @@ void score_moves(SearchContext &ctx, Game &game, MoveList &moves);
 void sort_moves(MoveList &moves);
 
 Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_t depth,
-             int32_t ply, bool allowNullMove);
+             int32_t ply, bool is_pv, bool allowNullMove);
 
 Score quiescence(SearchContext &ctx, Game &game, Score alpha, Score beta);
 

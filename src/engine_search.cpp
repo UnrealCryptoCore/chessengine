@@ -228,7 +228,7 @@ bool inline is_killer(SearchContext &ctx, uint8_t ply, Move move) {
 }
 
 Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_t depth,
-             int32_t ply, bool allowNullMove) {
+             int32_t ply, bool is_pv, bool allowNullMove) {
     ctx.nodes++;
 
     if (ctx.stop) {
@@ -255,11 +255,11 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
     bool check = game.is_check(game.color);
 
     // null move
-    if (allowNullMove && depth >= 3 && !check && game.has_non_pawn_material(game.color)) {
+    if (!is_pv && allowNullMove && depth >= 3 && !check && game.has_non_pawn_material(game.color)) {
         constexpr int R = 2;
 
         game.make_null_move();
-        Score score = -search(ctx, game, -beta, -beta + 1, depth - 1 - R, ply + 1, false);
+        Score score = -search(ctx, game, -beta, -beta + 1, depth - 1 - R, ply + 1, false, false);
         game.undo_null_move();
 
         if (score >= beta) {
@@ -272,6 +272,7 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
     uint8_t legalMoves = 0;
     Move bestMove{};
 
+    // tt entry (also pv move)
     TableEntry entry;
     bool validTE = ctx.table->probe(game.hash, entry, ply);
     if (validTE) {
@@ -289,7 +290,7 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
         if (game.is_pseudo_legal(entry.best)) {
             game.make_move(entry.best);
             if (!game.is_check(!game.color)) {
-                bestScore = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
+                bestScore = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true, true);
                 if (bestScore >= beta) {
                     game.undo_move(entry.best);
                     ctx.table->update(game.hash, ctx.gen, depth, entry.best, bestScore,
@@ -306,6 +307,13 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
             game.undo_move(bestMove);
         }
     }
+
+    // reverse futility pruning
+    /*Score eval = Evaluation::tapered_eval(game);
+    Score margin = 150 * depth;
+    if (!is_pv && allowNullMove && !check && depth <= 3 && beta < mate_threshold && eval >= beta + margin) {
+        return eval;
+    }*/
 
     MoveList moves;
 
@@ -333,7 +341,7 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
         int8_t reduction = 0;
         Score score;
         if (legalMoves == 0) {
-            score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
+            score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true, true);
         } else {
             bool canReduce = depth >= 3 && legalMoves >= 4 && !check;
             if (move.is_tactical() || is_killer(ctx, ply, move)) {
@@ -343,12 +351,12 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
                 reduction = 1.0 + std::log(depth) * std::log(legalMoves) / 3;
                 reduction += bool(ctx.history[!game.color][move.from][move.to] < 0);
             }
-            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1 - reduction, ply + 1, true);
+            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1 - reduction, ply + 1, false, true);
             if (score > alpha && reduction > 0) {
-                score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, ply + 1, true);
+                score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, ply + 1, false, true);
             }
             if (score > alpha && score < beta) {
-                score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
+                score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, false, true);
             }
         }
 
@@ -486,11 +494,11 @@ Score search_root(Search::SearchContext &ctx, Game &game, Score alpha, Score bet
 
         Score score;
         if (i == 0) {
-            score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
+            score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true, true);
         } else {
-            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, ply + 1, true);
+            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, ply + 1, false, true);
             if (score > alpha && score < beta) {
-                score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, true);
+                score = -search(ctx, game, -beta, -alpha, depth - 1, ply + 1, false, true);
             }
         }
 
