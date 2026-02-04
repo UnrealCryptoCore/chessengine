@@ -229,11 +229,10 @@ bool inline is_killer(SearchContext &ctx, uint8_t ply, Move move) {
 
 Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_t depth,
              int32_t ply, bool is_pv, bool allowNullMove) {
-    ctx.nodes++;
-
     if (ctx.stop) {
         return 0;
     }
+    ctx.nodes++;
 
     if ((ctx.nodes & 2047) == 0 && ctx.timeUp()) {
         ctx.stop = true;
@@ -254,6 +253,15 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
 
     bool check = game.is_check(game.color);
 
+    // reverse futility pruning
+    if (!is_pv && !check && depth <= 3 && !is_mate(beta)) {
+        Score eval = signedColor[game.color] * Evaluation::tapered_eval(game);
+        Score margin = 150 * depth;
+        if (eval >= beta + margin) {
+            return eval;
+        }
+    }
+
     // null move
     if (!is_pv && allowNullMove && depth >= 3 && !check && game.has_non_pawn_material(game.color)) {
         constexpr int R = 2;
@@ -272,7 +280,7 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
     uint8_t legalMoves = 0;
     Move bestMove{};
 
-    // tt entry (also pv move)
+    // tt entry
     TableEntry entry;
     bool validTE = ctx.table->probe(game.hash, entry, ply);
     if (validTE) {
@@ -307,13 +315,6 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
             game.undo_move(bestMove);
         }
     }
-
-    // reverse futility pruning
-    /*Score eval = Evaluation::tapered_eval(game);
-    Score margin = 150 * depth;
-    if (!is_pv && allowNullMove && !check && depth <= 3 && beta < mate_threshold && eval >= beta + margin) {
-        return eval;
-    }*/
 
     MoveList moves;
 
@@ -351,7 +352,8 @@ Score search(SearchContext &ctx, Game &game, int32_t alpha, int32_t beta, int32_
                 reduction = 1.0 + std::log(depth) * std::log(legalMoves) / 3;
                 reduction += bool(ctx.history[!game.color][move.from][move.to] < 0);
             }
-            score = -search(ctx, game, -alpha - 1, -alpha, depth - 1 - reduction, ply + 1, false, true);
+            score =
+                -search(ctx, game, -alpha - 1, -alpha, depth - 1 - reduction, ply + 1, false, true);
             if (score > alpha && reduction > 0) {
                 score = -search(ctx, game, -alpha - 1, -alpha, depth - 1, ply + 1, false, true);
             }
@@ -573,6 +575,7 @@ SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_t depth)
         alpha = i > 1 ? score - delta : -mate;
         beta = i > 1 ? score + delta : mate;
 
+        // aspiration windows with gradual widening
         while (!ctx.stop) {
             score = search_root(ctx, game, alpha, beta, i);
             if (score <= alpha) {
