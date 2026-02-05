@@ -569,9 +569,9 @@ SearchResult iterative_deepening(SearchContext &ctx, Game &game, uint32_t depth)
     int32_t alpha = -mate;
     int32_t beta = mate;
     int32_t score = 0;
-    int32_t delta = 30;
 
     for (uint32_t i = 1; i <= depth; i++) {
+        int32_t delta = 30;
         alpha = i > 1 ? score - delta : -mate;
         beta = i > 1 ? score + delta : mate;
 
