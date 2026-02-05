@@ -1,11 +1,15 @@
+#include "engine_search.h"
 #include "game.h"
 #include <bit>
 #include <cassert>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 #include <cstdlib>
+#include <fstream>
+#include <print>
+#include <sstream>
+#include <string>
 #include <unordered_map>
-
 
 TEST_CASE("Computing valid positions", "[perft]") {
     Mondfisch::initConstants();
@@ -207,3 +211,41 @@ TEST_CASE("Zobrist Hashing Quality Tests", "[hashing]") {
         CHECK(collisions == 0);
     }
 }
+
+/*std::string epd_to_fen_fast(const std::string &epd) {
+    size_t pos = 0;
+    for (int i = 0; i < 4; ++i) {
+        pos = epd.find(' ', pos + 1);
+        if (pos == std::string::npos)
+            break;
+    }
+
+    if (pos == std::string::npos)
+        return epd + " 0 1";
+    return epd.substr(0, pos) + " 0 1";
+}
+
+TEST_CASE("Draw Detection", "[draw]") {
+    Mondfisch::initConstants();
+    Mondfisch::Game game{};
+    Mondfisch::Search::TranspositionTable table{};
+    table.setsize(16);
+    table.clear();
+
+    Mondfisch::Search::SearchContext ctx{};
+    ctx.reset();
+    ctx.table = &table;
+    SECTION("Arasan") {
+        std::ifstream arasan("tests/data/arasan2024.epd");
+        REQUIRE(arasan.is_open());
+        std::string line;
+        while (std::getline(arasan, line)) {
+            std::stringstream ss(line);
+            std::string fen = epd_to_fen_fast(line);
+            game.loadFen(fen);
+            game.showBoard();
+            auto res = Mondfisch::Search::iterative_deepening(ctx, game, 10);
+            CHECK(res.score == 0);
+        }
+    }
+}*/

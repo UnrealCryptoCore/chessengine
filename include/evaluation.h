@@ -7,6 +7,7 @@
 
 namespace Mondfisch::Evaluation {
 
+constexpr int32_t max_mobility = 25;
 inline constexpr Position flip(Position pos) { return pos ^ 56; }
 
 constexpr std::array<int16_t, numberChessPieces + 1> pieceValues{
@@ -27,7 +28,17 @@ constexpr std::array<int32_t, numberChessPieces - 1> piece_phases{
 
 // clang-format off
 // PeSTO evaluation tables
- constexpr std::array<int, 64> mg_pawn_table{
+//
+
+constexpr std::array<int, numberChessPieces + 1> mg_value{
+    20000, 1025, 466, 365, 337, 82, 82,
+};
+
+constexpr std::array<int, numberChessPieces + 1> eg_value{
+    20000, 936, 512, 297, 281, 94, 94,
+};
+
+constexpr std::array<int, 64> mg_pawn_table{
       0,   0,   0,   0,   0,   0,  0,   0,
      98, 134,  61,  95,  68, 126, 34, -11,
      -6,   7,  26,  31,  65,  56, 25, -20,
@@ -190,7 +201,8 @@ constexpr std::array<std::array<std::array<int32_t, 64>, numberChessPieces>, 2> 
 
 void show_piece_square_table(const std::array<int16_t, 64> &squares);
 
-template <std::array<std::array<std::array<int32_t, 64>, numberChessPieces>, 2> table>
+template <std::array<std::array<std::array<int32_t, 64>, numberChessPieces>, 2> table,
+          std::array<int, numberChessPieces + 1> pieceValue>
 int32_t simple_evaluate(Game &game);
 
 int32_t tapered_eval(Game &game);

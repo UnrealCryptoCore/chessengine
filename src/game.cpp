@@ -208,7 +208,7 @@ void Game::legal_moves(MoveList &moves) {
     }
 }
 
-BitBoard Game::attackBoard(BitBoard p, BitBoard mask, BitBoard occupancy) {
+BitBoard attack_board(BitBoard p, BitBoard mask, BitBoard occupancy) {
     BitBoard occ = mask & occupancy;
     BitBoard left = occ - (p << 1);
     BitBoard right = reverse_bits(reverse_bits(occ) - (reverse_bits(p) << 1));
@@ -216,26 +216,26 @@ BitBoard Game::attackBoard(BitBoard p, BitBoard mask, BitBoard occupancy) {
     return attacks;
 }
 
-BitBoard Game::rookAttacks(Position pos, BitBoard occupancy) {
+BitBoard rook_attacks(Position pos, BitBoard occupancy) {
     uint8_t rank = rank_from_pos(pos);
     uint8_t file = file_from_pos(pos);
     BitBoard p = position_to_bitboard(pos);
 
-    BitBoard attacks = attackBoard(p, fileMasks[file], occupancy);
-    attacks |= attackBoard(p, rankMasks[rank], occupancy);
+    BitBoard attacks = attack_board(p, fileMasks[file], occupancy);
+    attacks |= attack_board(p, rankMasks[rank], occupancy);
     return attacks;
 }
 
-BitBoard Game::bishopAttacks(Position pos, BitBoard occupancy) {
+BitBoard bishop_attacks(Position pos, BitBoard occupancy) {
     BitBoard p = position_to_bitboard(pos);
 
-    BitBoard attacks = attackBoard(p, diag1Masks[pos], occupancy);
-    attacks |= attackBoard(p, diag2Masks[pos], occupancy);
+    BitBoard attacks = attack_board(p, diag1Masks[pos], occupancy);
+    attacks |= attack_board(p, diag2Masks[pos], occupancy);
     return attacks;
 }
 
 void Game::generate_rook_captures(Position pos, MoveList &moves) {
-    BitBoard attacks = rookAttacks(pos, occupancyBoth) & occupancy[!color];
+    BitBoard attacks = rook_attacks(pos, occupancyBoth) & occupancy[!color];
     for (Position to : BitRange{attacks}) {
         MoveType flags = MoveType::MOVE_CAPTURE;
         moves.push_back(ScoreMove{{pos, to, flags}});
@@ -263,7 +263,7 @@ void Game::generate_king_moves(Position pos, MoveList &moves) {
 }
 
 void Game::generate_rook_moves(Position pos, MoveList &moves) {
-    BitBoard attacks = rookAttacks(pos, occupancyBoth);
+    BitBoard attacks = rook_attacks(pos, occupancyBoth);
     attacks &= ~occupancy[color];
     for (Position to : BitRange{attacks}) {
         MoveType flags =
@@ -273,7 +273,7 @@ void Game::generate_rook_moves(Position pos, MoveList &moves) {
 }
 
 void Game::generate_bishop_captures(Position pos, MoveList &moves) {
-    BitBoard attacks = bishopAttacks(pos, occupancyBoth) & occupancy[!color];
+    BitBoard attacks = bishop_attacks(pos, occupancyBoth) & occupancy[!color];
     for (Position to : BitRange{attacks}) {
         MoveType flags = MoveType::MOVE_CAPTURE;
         moves.push_back(ScoreMove{{pos, to, flags}});
@@ -281,7 +281,7 @@ void Game::generate_bishop_captures(Position pos, MoveList &moves) {
 }
 
 void Game::generate_bishop_moves(Position pos, MoveList &moves) {
-    BitBoard attacks = bishopAttacks(pos, occupancyBoth);
+    BitBoard attacks = bishop_attacks(pos, occupancyBoth);
     attacks &= ~occupancy[color];
     for (Position to : BitRange{attacks}) {
         MoveType flags =
@@ -497,8 +497,8 @@ Position Game::get_lva(BitBoard attackers, uint8_t color) {
 }
 
 BitBoard Game::attacks_to(Position pos, uint8_t color) {
-    BitBoard bAttacks = bishopAttacks(pos, occupancyBoth);
-    BitBoard rAttacks = rookAttacks(pos, occupancyBoth);
+    BitBoard bAttacks = bishop_attacks(pos, occupancyBoth);
+    BitBoard rAttacks = rook_attacks(pos, occupancyBoth);
     BitBoard enemyPawns = bitboard[color][(uint8_t)Piece::PAWN];
     BitBoard enemyQueens = bitboard[color][(uint8_t)Piece::QUEEN];
     BitBoard attacks = pawnAttacks[!color][pos];
@@ -513,8 +513,8 @@ BitBoard Game::attacks_to(Position pos, uint8_t color) {
 }
 
 BitBoard Game::attacks_to(Position pos) {
-    BitBoard bAttacks = bishopAttacks(pos, occupancyBoth);
-    BitBoard rAttacks = rookAttacks(pos, occupancyBoth);
+    BitBoard bAttacks = bishop_attacks(pos, occupancyBoth);
+    BitBoard rAttacks = rook_attacks(pos, occupancyBoth);
     BitBoard queens = bitboard[0][uint8_t(Piece::QUEEN)] | bitboard[1][uint8_t(Piece::QUEEN)];
     BitBoard knights = bitboard[0][uint8_t(Piece::KNIGHT)] | bitboard[1][uint8_t(Piece::KNIGHT)];
     BitBoard bishops = bitboard[0][uint8_t(Piece::BISHOP)] | bitboard[1][uint8_t(Piece::BISHOP)];
@@ -534,8 +534,8 @@ BitBoard Game::attacks_to(Position pos) {
 }
 
 BitBoard Game::get_xray_attackers(Position target, BitBoard from, BitBoard occupancy) {
-    BitBoard bAttacks = bishopAttacks(target, occupancy);
-    BitBoard rAttacks = rookAttacks(target, occupancy);
+    BitBoard bAttacks = bishop_attacks(target, occupancy);
+    BitBoard rAttacks = rook_attacks(target, occupancy);
 
     BitBoard queens = bitboard[0][uint8_t(Piece::QUEEN)] | bitboard[1][uint8_t(Piece::QUEEN)];
     BitBoard bishops = bitboard[0][uint8_t(Piece::BISHOP)] | bitboard[1][uint8_t(Piece::BISHOP)];
@@ -602,11 +602,11 @@ bool Game::is_sqaure_attacked(Position pos, uint8_t enemy) {
     }
 
     BitBoard enemyQueens = bitboard[enemy][(uint8_t)Piece::QUEEN];
-    attacks = bishopAttacks(pos, occupancyBoth);
+    attacks = bishop_attacks(pos, occupancyBoth);
     if ((attacks & (enemyQueens | bitboard[enemy][(uint8_t)Piece::BISHOP])) != 0) {
         return true;
     }
-    attacks = rookAttacks(pos, occupancyBoth);
+    attacks = rook_attacks(pos, occupancyBoth);
     if ((attacks & (enemyQueens | bitboard[enemy][(uint8_t)Piece::ROOK])) != 0) {
         return true;
     }

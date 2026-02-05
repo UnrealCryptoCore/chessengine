@@ -263,9 +263,6 @@ struct Game {
 
     void reset();
     void calculateOccupancy();
-    BitBoard attackBoard(BitBoard p, BitBoard mask, BitBoard occupancy);
-    BitBoard rookAttacks(Position pos, BitBoard occupancy);
-    BitBoard bishopAttacks(Position pos, BitBoard occupancy);
     void generate_king_captures(Position pos, MoveList &moves);
     void generate_king_moves(Position pos, MoveList &moves);
     void generate_rook_moves(Position pos, MoveList &moves);
@@ -313,4 +310,8 @@ struct Game {
 };
 
 void perftInfo(Game &game, uint32_t n);
+BitBoard attack_board(BitBoard p, BitBoard mask, BitBoard occupancy);
+BitBoard rook_attacks(Position pos, BitBoard occupancy);
+BitBoard bishop_attacks(Position pos, BitBoard occupancy);
+
 } // namespace Mondfisch

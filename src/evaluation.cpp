@@ -37,22 +37,24 @@ int32_t eval(int32_t opening, int32_t engame, int32_t phase) {
 
 int32_t tapered_eval(Game &game) {
     int32_t phase = eval_phase(game);
-    int32_t opening = simple_evaluate<mg_piece_table>(game);
-    int32_t endgame = simple_evaluate<eg_piece_table>(game);
+    int32_t opening = simple_evaluate<mg_piece_table, mg_value>(game);
+    int32_t endgame = simple_evaluate<eg_piece_table, eg_value>(game);
+
     return eval(opening, endgame, phase);
 }
 
-template <std::array<std::array<std::array<int32_t, 64>, numberChessPieces>, 2> table>
+template <std::array<std::array<std::array<int32_t, 64>, numberChessPieces>, 2> table,
+          std::array<int, numberChessPieces + 1> pieceValue>
 int32_t simple_evaluate(Game &game) {
     int32_t value = 0;
-    for (uint8_t piece = (uint8_t)Piece::KING; piece < (uint8_t)Piece::NONE; piece++) {
+    for (int piece = int(Piece::KING); piece < int(Piece::NONE); piece++) {
         for (Position pos : BitRange{game.bitboard[0][piece]}) {
             value += table[0][piece][pos];
-            value += pieceValues[piece];
+            value += pieceValue[piece];
         }
         for (Position pos : BitRange{game.bitboard[1][piece]}) {
             value -= table[1][piece][pos];
-            value -= pieceValues[piece];
+            value -= pieceValue[piece];
         }
     }
     return value;
